@@ -4,6 +4,8 @@ Um site para jogar Hitster com músicas aleatórias. Toca um excerto (10 s por d
 
 As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem configuração.
 
+**Jogar online:** https://hitsterfake.vercel.app
+
 ## Como abrir
 
 ```sh
