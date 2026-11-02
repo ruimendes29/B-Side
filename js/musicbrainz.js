@@ -1,0 +1,80 @@
+// MusicBrainz: ano da primeira edição de uma gravação.
+// O Spotify e a Deezer dão muitas vezes o ano de uma remasterização ou compilação.
+import { normalize, sleep, store } from './util.js';
+
+const API = 'https://musicbrainz.org/ws/2/recording';
+const ARTIST_API = 'https://musicbrainz.org/ws/2/artist';
+const esc = (s) => String(s).replace(/[\\+\-&|!(){}[\]^"~*?:/]/g, '\\$&');
+const BAD_DISAMBIGUATION = /live|demo|remix|instrumental|session|rehearsal|acoustic|karaoke/i;
+
+// O MusicBrainz aceita no máximo ~1 pedido por segundo.
+let queue = Promise.resolve();
+function throttled(url) {
+  const run = queue.then(async () => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (res.ok) return res.json();
+      if (res.status !== 503 || attempt === 2) throw new Error(`MusicBrainz ${res.status}`);
+      await sleep(2000 * (attempt + 1)); // limite de pedidos: esperar e tentar de novo
+    }
+  });
+  queue = run.catch(() => {}).then(() => sleep(1100));
+  return run;
+}
+
+/**
+ * Ano mais antigo de um álbum/single/EP oficial (sem compilações nem ao vivo).
+ * Se não houver nenhum com data, usa a primeira edição conhecida de qualquer tipo.
+ * Devolve null se o MusicBrainz não conhecer a música.
+ */
+export async function firstReleaseYear(artist, title) {
+  try {
+    const query = `recording:"${esc(title)}" AND artist:"${esc(artist)}" AND video:false`;
+    const json = await throttled(`${API}?fmt=json&limit=100&query=${encodeURIComponent(query)}`);
+    const na = normalize(artist);
+    const nt = normalize(title);
+    let best = null;
+    let fallback = null;
+    for (const rec of json.recordings || []) {
+      if (rec.score < 80 || normalize(rec.title) !== nt) continue;
+      // Aceita duetos: "Beto" corresponde a "Rita Guerra & Beto".
+      const credit = normalize((rec['artist-credit'] || []).map((c) => `${c.name} ${c.joinphrase || ''}`).join(' '));
+      if (!` ${credit} `.includes(` ${na} `)) continue;
+      if (BAD_DISAMBIGUATION.test(rec.disambiguation || '')) continue;
+      const first = parseInt(String(rec['first-release-date'] || '').slice(0, 4), 10);
+      if (first > 1900 && (fallback == null || first < fallback)) fallback = first;
+      for (const rel of rec.releases || []) {
+        const rg = rel['release-group'] || {};
+        if (rel.status && rel.status !== 'Official') continue;
+        if (!['Album', 'Single', 'EP'].includes(rg['primary-type'])) continue;
+        if (rg['secondary-types']?.length) continue;
+        const y = parseInt(String(rel.date || '').slice(0, 4), 10);
+        if (y > 1900 && (best == null || y < best)) best = y;
+      }
+    }
+    return best ?? fallback;
+  } catch {
+    return null;
+  }
+}
+
+// País de cada artista, guardado no browser para não repetir pedidos ('' = desconhecido).
+const artistCache = store.get('mb_artists', {});
+
+/** País (código ISO, ex.: "PT") do artista, ou null se o MusicBrainz não o conhecer. */
+export async function artistCountry(name) {
+  const key = normalize(name);
+  if (key in artistCache) return artistCache[key] || null;
+  try {
+    const json = await throttled(`${ARTIST_API}?fmt=json&limit=5&query=${encodeURIComponent(`artist:"${esc(name)}"`)}`);
+    const match = (json.artists || []).find((a) => a.score >= 90
+      && (normalize(a.name) === key || (a.aliases || []).some((al) => normalize(al.name) === key)));
+    artistCache[key] = match?.country || '';
+    const keys = Object.keys(artistCache);
+    if (keys.length > 3000) delete artistCache[keys[0]];
+    store.set('mb_artists', artistCache);
+    return artistCache[key] || null;
+  } catch {
+    return null; // sem rede/limite: não bloqueia
+  }
+}
