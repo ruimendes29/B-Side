@@ -56,3 +56,86 @@ export function isGroupType(type) {
   if (type === 'Person' || type === 'Character') return false;
   return true; // Group, Orchestra, Choir
 }
+
+// ---------- Modo artistas ----------
+// Mesmas cores e posições que no jogo normal; as perguntas passam a ser sobre o artista e os seus álbuns.
+Object.assign(C, {
+  before_after: { name: 'Antes ou depois de…', ask: 'Foi lançada antes ou depois de uma data?', color: '#ffd23f' },
+  album_name: { name: 'Nome do álbum', ask: 'Em que álbum de estúdio está?', color: '#ff4fa3' },
+  album_choice: { name: 'Qual é o álbum?', ask: 'Escolhe entre três álbuns de estúdio.', color: '#ff8a3d' },
+  album_order: { name: 'Que álbum é?', ask: 'Qual é a ordem do álbum na discografia? (1.º é o primeiro)', color: '#ff8a3d' },
+  artist_pick: { name: 'Qual dos artistas?', ask: 'Quem canta esta música?', color: '#3ec6ff' },
+  track_no: { name: 'Nº da faixa no álbum', ask: 'Em que posição está no álbum? Vale ±1.', color: '#3ec6ff' },
+  near1: { name: '1 ano para cima ou para baixo', ask: 'Escreve o ano. Vale se errares por 1 ano.', color: '#a77bff' },
+  chorus: { name: 'Completar o refrão', ask: 'Escreve as palavras que faltam no verso do refrão.', color: '#a77bff' },
+});
+
+export const ARTIST_SIDES = {
+  beginner: { name: 'Iniciante', letter: 'A', categories: ['title', 'before_after', 'near3', 'album_choice', 'chorus'] },
+  expert: { name: 'Experiente', letter: 'B', categories: ['album_name', 'exact', 'slot3', 'album_order', 'near1'] },
+};
+
+// 'slot3' é a 3.ª cor do lado B: "Qual dos artistas?" com 2 ou mais artistas, "Nº da faixa" com um só.
+export const artistKeys = (side, nArtists) => ARTIST_SIDES[side].categories
+  .map((k) => (k === 'slot3' ? (nArtists >= 2 ? 'artist_pick' : 'track_no') : k));
+
+// Só se sorteia uma categoria para a qual a música tem dados.
+const available = (key, f, nArtists) => {
+  switch (key) {
+    case 'before_after':
+    case 'album_order': return f.studioTitles.length >= 2;
+    case 'album_choice': return f.studioTitles.length >= 3;
+    case 'artist_pick': return nArtists >= 2;
+    case 'track_no': return f.trackNo != null;
+    case 'chorus': return Boolean(f.chorus);
+    default: return true;
+  }
+};
+
+const shuffle = (xs, rng) => [...xs].sort(() => rng() - 0.5);
+
+/** Sorteia uma categoria do lado escolhido entre as que esta música permite. */
+export function drawArtistCategory(side, facts, artistNames, rng = Math.random) {
+  const keys = artistKeys(side, artistNames.length).filter((k) => available(k, facts, artistNames.length));
+  return artistCategory(keys[Math.floor(rng() * keys.length)], facts, artistNames, rng);
+}
+
+/** Categoria pronta para a carta: as opções (álbuns, artistas) e a pergunta com a data concreta. */
+export function artistCategory(key, facts, artistNames, rng = Math.random) {
+  const base = category(key);
+  switch (key) {
+    case 'before_after': return { ...base, ask: `Foi lançada antes ou depois de ${facts.pivot}?` };
+    case 'album_choice': {
+      const wrong = shuffle(facts.studioTitles.filter((t) => t !== facts.albumName), rng).slice(0, 2);
+      const options = shuffle([facts.albumName, ...wrong], rng);
+      return { ...base, ask: options.map((o, i) => `${'ABC'[i]} · ${o}`).join('   ') };
+    }
+    case 'artist_pick':
+      return { ...base, ask: artistNames.map((o, i) => `${i + 1} · ${o}`).join('   ') };
+    case 'track_no': return { ...base, ask: `Qual é o número da faixa no álbum? (vale ±1)` };
+    case 'chorus': return { ...base, ask: `${facts.chorus.shown} ${facts.chorus.hidden.map(() => '____').join(' ')}` };
+    default: return base;
+  }
+}
+
+const WINDOW = { near1: 1, near2: 2, near3: 3 };
+
+/** Resposta da categoria, para a carta revelada. t = música (com title, year e facts). */
+export function artistAnswer(key, t) {
+  const f = t.facts;
+  if (key in WINDOW) return `Vale de ${t.year - WINDOW[key]} a ${t.year + WINDOW[key]}`;
+  switch (key) {
+    case 'title': return t.title;
+    case 'exact': return String(t.year);
+    case 'before_after':
+      if (t.year === f.pivot) return `No mesmo ano (${t.year})`;
+      return t.year < f.pivot ? `Antes (${t.year})` : `Depois (${t.year})`;
+    case 'album_name':
+    case 'album_choice': return f.albumName;
+    case 'album_order': return `${f.albumOrder}.º álbum de estúdio`;
+    case 'artist_pick': return f.source;
+    case 'track_no': return `Faixa ${f.trackNo}`;
+    case 'chorus': return f.chorus.hidden.join(' ');
+    default: return '—';
+  }
+}

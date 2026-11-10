@@ -1,9 +1,10 @@
-import { $, $$, store, randInt, fmtTime, escapeHtml, minYear, sleep } from './util.js';
+import { $, $$, store, randInt, fmtTime, escapeHtml, minYear, sleep, normalize } from './util.js';
 import * as DZ from './deezer.js';
 import * as MB from './musicbrainz.js';
 import * as WD from './wikidata.js';
 import { LANGUAGES, LANG_COLORS, pickLanguage, titleConfirms, artistFits } from './languages.js';
 import * as Bingo from './bingo.js';
+import * as AR from './artists.js';
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
 // Fama: só aceita músicas entre as X% mais ouvidas na Deezer da mesma língua e década.
@@ -13,9 +14,11 @@ const DEFAULTS = {
   decades: [1970, 1980, 1990, 2000, 2010],
   languages: { en: 50, pt: 50 }, // pt = Portugal, br = Brasil; percentagens (somam 100); a ordem define a cor na barra
   dzPlaylist: '',
+  artists: [], // modo "Por artista": [{ id, name }]
   duration: 10,
   start: 'random',
   noRepeat: true,
+  blockedArtists: [], // nomes como foram escritos; a comparação ignora maiúsculas e acentos
   fame: 'known', // any | known | hits
   bingo: 'beginner', // beginner (lado A) | expert (lado B) | off
 };
@@ -25,12 +28,17 @@ if (saved.languages?.pt > 0 && !saved.ptSplit && !('br' in saved.languages)) {
   saved.languages = { ...saved.languages, pt: saved.languages.pt / 2, br: saved.languages.pt / 2 };
 }
 const settings = { ...DEFAULTS, ...saved, ptSplit: true };
-if (!['decades', 'playlists'].includes(settings.mode)) settings.mode = 'decades';
+if (!['decades', 'playlists', 'artists'].includes(settings.mode)) settings.mode = 'decades';
+if (!Array.isArray(settings.artists)) settings.artists = [];
+settings.artists = settings.artists.filter((a) => a && a.id && a.name);
 if (!(settings.fame in FAME)) settings.fame = DEFAULTS.fame;
 if (!(settings.bingo in Bingo.SIDES) && settings.bingo !== 'off') settings.bingo = DEFAULTS.bingo;
 settings.languages = Object.fromEntries(Object.entries(settings.languages || {}).filter(([k]) => LANGUAGES[k]));
 if (!Object.keys(settings.languages).length) settings.languages = { ...DEFAULTS.languages };
 normalizeShares();
+
+if (!Array.isArray(settings.blockedArtists)) settings.blockedArtists = [];
+DZ.setBlockedArtists(settings.blockedArtists);
 
 let history = store.get('history', []);
 let played = new Set(store.get('played', []));
@@ -117,6 +125,7 @@ function renderSettings() {
   renderShares();
 
   let pill = 'Playlist da Deezer';
+  if (settings.mode === 'artists') pill = settings.artists.length ? settings.artists.map((a) => a.name).join(', ') : 'Sem artistas';
   if (settings.mode === 'decades') {
     const langs = languageShares().filter((l) => l.pct > 0).map((l) => `${LANGUAGES[l.key].code} ${l.pct}%`).join(' · ');
     const ds = [...settings.decades].sort();
@@ -130,12 +139,14 @@ function renderSettings() {
 
 /** Categorias do lado escolhido, nas definições. */
 function renderCategoryList() {
-  const side = Bingo.SIDES[settings.bingo];
+  const artistMode = settings.mode === 'artists';
+  const side = artistMode ? Bingo.ARTIST_SIDES[settings.bingo] : Bingo.SIDES[settings.bingo];
   const list = $('#catList');
   list.hidden = !side;
   $('#sidePick').hidden = S.round > 0;
   if (!side) return;
-  list.innerHTML = side.categories.map((k) => {
+  const keys = artistMode ? Bingo.artistKeys(settings.bingo, settings.artists.length) : side.categories;
+  list.innerHTML = keys.map((k) => {
     const c = Bingo.category(k);
     return `<li><i style="background:${c.color}"></i><span><b>${c.name}</b>${c.ask}</span></li>`;
   }).join('');
@@ -241,6 +252,33 @@ function bindSettings() {
   noRepeat.checked = settings.noRepeat;
   noRepeat.addEventListener('change', () => { settings.noRepeat = noRepeat.checked; saveSettings(); });
 
+  $('#blockForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('#blockInput');
+    if (blockArtist(input.value)) input.value = '';
+  });
+  $('#blockedList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-unblock]');
+    if (btn) unblockArtist(btn.dataset.unblock);
+  });
+
+  // Modo artistas: pesquisar, adicionar e remover.
+  let artistTimer = 0;
+  $('#artistSearch').addEventListener('input', (e) => {
+    clearTimeout(artistTimer);
+    const q = e.target.value.trim();
+    if (q.length < 2) { $('#artistResults').innerHTML = ''; return; }
+    artistTimer = setTimeout(() => searchArtistsUI(q), 300);
+  });
+  $('#artistResults').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-artist-id]');
+    if (b) addArtist({ id: +b.dataset.artistId, name: b.dataset.artistName });
+  });
+  $('#artistTags').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-remove-artist]');
+    if (b) removeArtist(+b.dataset.removeArtist);
+  });
+
   $('#clearHistory').addEventListener('click', () => {
     if (!confirm('Limpar o histórico e voltar a permitir todas as músicas?')) return;
     history = [];
@@ -303,6 +341,11 @@ async function fetchTrack(skipIds = []) {
   const gen = settingsGen;
   const exclude = new Set(settings.noRepeat ? played : []);
   skipIds.forEach((id) => id && exclude.add(id));
+
+  if (settings.mode === 'artists') {
+    if (!settings.artists.length) throw new Error('Escolhe pelo menos um artista nas definições.');
+    return AR.pickArtistTrack({ artists: settings.artists, exclude, top: FAME[settings.fame] });
+  }
 
   if (settings.mode !== 'decades') {
     const id = DZ.parsePlaylistId(settings.dzPlaylist);
@@ -394,7 +437,10 @@ async function nextTrack() {
   setPhase('loading');
   setStatus('');
   // Primeiro sorteia-se a categoria (enquanto a música carrega), depois toca a música.
-  const spin = settings.bingo in Bingo.SIDES ? spinCategory(Bingo.drawCategory(settings.bingo)) : (S.category = null, showCategory(null), null);
+  const artistMode = settings.mode === 'artists';
+  let spin = null;
+  if (artistMode) { S.category = null; showCategory(null); }
+  else spin = settings.bingo in Bingo.SIDES ? spinCategory(Bingo.drawCategory(settings.bingo)) : (S.category = null, showCategory(null), null);
   $('#sidePick').hidden = true;
   const prefetched = S.next?.gen === settingsGen ? S.next.promise : null;
   S.next = null;
@@ -406,6 +452,13 @@ async function nextTrack() {
       track = await fetchTrack([S.track?.id]).catch((e) => { if (e instanceof StaleError) return null; throw e; });
     }
     if (!track) throw new Error('As definições mudaram muitas vezes seguidas. Tenta outra vez.');
+    // No modo artistas, a categoria só se sorteia depois da música, para escolher uma que ela permita.
+    if (artistMode && track.facts && settings.bingo in Bingo.ARTIST_SIDES) {
+      spin = spinCategory(
+        Bingo.drawArtistCategory(settings.bingo, track.facts, settings.artists.map((a) => a.name)),
+        Bingo.artistKeys(settings.bingo, settings.artists.length),
+      );
+    }
     if (spin && !(await spin)) return; // outra ronda começou entretanto
     if (S.category?.key === 'group') track.groupPromise ??= isGroup(track);
     S.track = track;
@@ -416,6 +469,7 @@ async function nextTrack() {
     $('#roundNo').textContent = S.round;
     $('#sidePick').hidden = true;
     $('#openLink').hidden = true;
+    $('#blockBtn').hidden = true;
     $('#fill').style.width = '0%';
     $('#tCur').textContent = '0:00';
     setPhase('ready');
@@ -447,12 +501,11 @@ function showCategory(cat, { rolling = false } = {}) {
  * Animação da bola de espelhos: passa pelas categorias do lado, cada vez mais devagar,
  * e para na sorteada. Devolve false se entretanto começou outra ronda.
  */
-async function spinCategory(cat) {
+async function spinCategory(cat, keys = Bingo.SIDES[settings.bingo]?.categories || []) {
   const id = ++S.spinId;
   S.category = cat;
   S.spinning = true;
   renderControls();
-  const keys = Bingo.SIDES[settings.bingo].categories;
   let i = keys.indexOf(cat.key) + randInt(1, keys.length - 1);
   // Múltiplo do número de categorias + o que falta para parar logo antes da sorteada.
   const steps = 2 * keys.length + ((keys.indexOf(cat.key) - i) % keys.length + keys.length) % keys.length;
@@ -485,6 +538,7 @@ async function showAnswer(t) {
   $('#bCat').style.setProperty('--cat', cat.color);
   $('#bCatName').textContent = cat.name;
   $('#bCatAnswer').textContent = '…';
+  if (t.facts) { $('#bCatAnswer').textContent = Bingo.artistAnswer(cat.key, t); return; }
   const group = cat.key === 'group' ? await (t.groupPromise ??= isGroup(t)) : null;
   if (S.track !== t) return;
   $('#bCatAnswer').textContent = Bingo.answer(cat.key, {
@@ -511,6 +565,7 @@ async function reveal() {
   showAnswer(t);
   $('#openLink').href = t.link || '#';
   $('#openLink').hidden = !t.link;
+  renderBlockButton();
 
   history.unshift({
     id: t.id, title: t.title, artist: t.artists.join(', '), year, image: t.image, link: t.link, lang: t.lang,
@@ -579,7 +634,55 @@ function renderHistory() {
         <span class="a">${h.cat ? catTag(h.cat) : ''}${h.lang && LANGUAGES[h.lang] ? `<span class="tag">${LANGUAGES[h.lang].code}</span>` : ''}${escapeHtml(h.artist)}</span>
       </span>
       <span class="y">${h.year ?? '—'}</span>
+      <button type="button" class="block" data-block="${escapeHtml(h.artist)}" title="Bloquear ${escapeHtml(h.artist)}" aria-label="Bloquear ${escapeHtml(h.artist)}">${BLOCK_ICON}</button>
     </li>`).join('');
+}
+
+// ---------- Artistas bloqueados ----------
+
+const BLOCK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 0 1 6.32 12.9L7.1 5.68A7.96 7.96 0 0 1 12 4zm0 16a8 8 0 0 1-6.32-12.9L16.9 18.32A7.96 7.96 0 0 1 12 20z"/></svg>';
+const sameName = (a, b) => normalize(a) === normalize(b);
+
+function blockArtist(name) {
+  name = String(name || '').trim();
+  if (!normalize(name)) return false;
+  if (settings.blockedArtists.some((b) => sameName(b, name))) {
+    setStatus(`${name} já está na lista de bloqueados.`);
+    return false;
+  }
+  settings.blockedArtists = [...settings.blockedArtists, name];
+  DZ.setBlockedArtists(settings.blockedArtists);
+  saveSettings(); // a próxima música já escolhida pode ser deste artista
+  renderBlocked();
+  renderBlockButton();
+  setStatus(`${name} está na lista de bloqueados: estas músicas não voltam a aparecer. Podes desfazer nas definições.`);
+  return true;
+}
+
+function unblockArtist(name) {
+  settings.blockedArtists = settings.blockedArtists.filter((b) => !sameName(b, name));
+  DZ.setBlockedArtists(settings.blockedArtists);
+  saveSettings();
+  renderBlocked();
+  renderBlockButton();
+}
+
+function renderBlocked() {
+  const list = $('#blockedList');
+  list.innerHTML = settings.blockedArtists.length
+    ? settings.blockedArtists.map((b) => `<li><span>${escapeHtml(b)}</span><button type="button" data-unblock="${escapeHtml(b)}" aria-label="Desbloquear ${escapeHtml(b)}" title="Desbloquear">×</button></li>`).join('')
+    : '<li class="empty">Nenhum artista bloqueado.</li>';
+}
+
+/** Botão na carta revelada para bloquear o artista desta música. */
+function renderBlockButton() {
+  const btn = $('#blockBtn');
+  const artist = S.track?.artists?.[0];
+  btn.hidden = !S.revealed || !artist;
+  if (btn.hidden) return;
+  const done = DZ.isBlocked(artist);
+  btn.disabled = done;
+  btn.innerHTML = `${BLOCK_ICON}<span>${done ? 'Na lista de bloqueados' : `Bloquear ${escapeHtml(artist)}`}</span>`;
 }
 
 function catTag(key) {
@@ -622,6 +725,11 @@ function bindControls() {
   $('#replayBtn').addEventListener('click', onReplay);
   $('#nextBtn').addEventListener('click', onNext);
   $('#revealBtn').addEventListener('click', onReveal);
+  $('#blockBtn').addEventListener('click', () => { if (S.track) blockArtist(S.track.artists[0]); });
+  $('#historyList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-block]');
+    if (btn) blockArtist(btn.dataset.block);
+  });
   $('#card').addEventListener('click', () => { if (S.track && !S.revealed) reveal(); });
 
   document.addEventListener('keydown', (e) => {
@@ -636,10 +744,46 @@ function bindControls() {
   });
 }
 
+// ---------- Modo artistas ----------
+const MAX_ARTISTS = 10;
+
+async function searchArtistsUI(q) {
+  let list = [];
+  try { list = await AR.searchArtists(q); } catch { setStatus('Não foi possível pesquisar artistas na Deezer.', 'error'); }
+  if ($('#artistSearch').value.trim() !== q) return; // a pesquisa já mudou entretanto
+  $('#artistResults').innerHTML = list.map((a) => `
+    <li><button type="button" data-artist-id="${a.id}" data-artist-name="${escapeHtml(a.name)}">
+      ${a.picture ? `<img src="${escapeHtml(a.picture)}" alt="">` : ''}<span>${escapeHtml(a.name)}</span>
+    </button></li>`).join('') || '<li class="empty">Nenhum artista encontrado.</li>';
+}
+
+function addArtist(a) {
+  if (settings.artists.some((x) => x.id === a.id)) return setStatus(`${a.name} já está escolhido.`);
+  if (settings.artists.length >= MAX_ARTISTS) return setStatus(`Podes escolher até ${MAX_ARTISTS} artistas.`);
+  settings.artists = [...settings.artists, a];
+  $('#artistSearch').value = '';
+  $('#artistResults').innerHTML = '';
+  saveSettings();
+  renderArtistTags();
+}
+
+function removeArtist(id) {
+  settings.artists = settings.artists.filter((x) => x.id !== id);
+  saveSettings();
+  renderArtistTags();
+}
+
+function renderArtistTags() {
+  $('#artistTags').innerHTML = settings.artists.map((a) => `<li><span>${escapeHtml(a.name)}</span><button type="button" data-remove-artist="${a.id}" aria-label="Remover ${escapeHtml(a.name)}" title="Remover">×</button></li>`).join('')
+    || '<li class="empty">Ainda nenhum artista.</li>';
+}
+
 // ---------- Arranque ----------
 
 bindSettings();
 bindControls();
+renderBlocked();
+renderArtistTags();
 renderLanguageList();
 renderSettings();
 renderControls();

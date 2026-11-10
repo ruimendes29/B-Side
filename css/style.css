@@ -326,13 +326,59 @@ kbd {
 .status { min-height: 20px; margin: 0; max-width: 480px; text-align: center; font-size: 14px; line-height: 1.45; color: var(--sub); }
 .status.error { color: var(--red); }
 
+/* Modo artistas */
+.artist-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.artist-results button {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  border: 0; border-radius: 6px; background: var(--elev-2); cursor: pointer;
+  padding: 6px 8px; color: var(--text); font-size: 14px; font-weight: 600; text-align: left;
+}
+.artist-results button:hover { background: var(--elev-3); }
+.artist-results img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; }
+.artist-results .empty { font-size: 13px; color: var(--muted); padding: 4px 2px; }
+
+/* Artistas bloqueados */
+.block-add { display: flex; gap: 8px; }
+.block-add input {
+  flex: 1; min-width: 0;
+  background: var(--elev-3); border: 1px solid transparent; border-radius: 6px;
+  padding: 9px 12px; font-size: 14px; color: var(--text); outline: none;
+}
+.block-add input:hover { border-color: #3e3e3e; }
+.block-add input:focus { border-color: #fff; }
+.block-add button {
+  border: 0; border-radius: 999px; cursor: pointer; flex: none;
+  background: var(--elev-3); padding: 0 14px; font-size: 13px; font-weight: 700;
+}
+.block-add button:hover { background: #333; }
+.blocked { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.blocked li {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--elev-2); border-radius: 999px; padding: 3px 4px 3px 12px; font-size: 13px; font-weight: 600;
+}
+.blocked li.empty { background: none; padding: 0; color: var(--muted); font-weight: 400; }
+.blocked button {
+  width: 24px; height: 24px; border: 0; border-radius: 50%; cursor: pointer;
+  background: none; color: var(--sub); font-size: 17px; line-height: 1;
+}
+.blocked button:hover { background: var(--elev-3); color: #fff; }
+
+.block-artist {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: -10px;
+  border: 0; background: none; cursor: pointer; padding: 4px 8px; border-radius: 999px;
+  color: var(--sub); font-size: 13px; font-weight: 600;
+}
+.block-artist svg, .tracks .block svg { width: 15px; height: 15px; fill: currentColor; flex: none; }
+.block-artist:hover:not(:disabled) { color: var(--red); }
+.block-artist:disabled { opacity: .6; }
+
 /* ---------- Histórico ---------- */
 .history { max-width: 920px; margin: 0 auto; padding: 8px 24px 40px; }
 .history-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
 .history h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
 .tracks { list-style: none; margin: 0 0 20px; padding: 0; }
 .tracks li {
-  display: grid; grid-template-columns: 28px 44px minmax(0, 1fr) auto;
+  display: grid; grid-template-columns: 28px 44px minmax(0, 1fr) auto 28px;
   align-items: center; gap: 14px; padding: 8px 12px; border-radius: 6px;
 }
 .tracks li:hover { background: rgba(255, 255, 255, .07); }
@@ -348,6 +394,15 @@ kbd {
   background: var(--elev-3); color: var(--sub); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px;
 }
 .tracks .y { font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+.tracks .block {
+  width: 28px; height: 28px; border: 0; border-radius: 50%; cursor: pointer;
+  background: none; color: var(--muted); display: grid; place-items: center;
+}
+.tracks .block:hover { color: var(--red); background: rgba(255, 255, 255, .08); }
+@media (hover: hover) {
+  .tracks .block { opacity: 0; transition: opacity .15s; }
+  .tracks li:hover .block, .tracks .block:focus-visible { opacity: 1; }
+}
 .tracks li.empty { display: block; color: var(--sub); font-size: 14px; padding: 8px 12px; }
 .tracks li.empty:hover { background: none; }
 .keys { padding: 0 12px; }
@@ -374,6 +429,6 @@ kbd {
   .round { font-size: 26px; }
   .stage { padding: 12px 16px 28px; gap: 18px; }
   .history { padding: 8px 16px 32px; }
-  .tracks li { padding: 8px 4px; gap: 12px; grid-template-columns: 22px 44px minmax(0, 1fr) auto; }
+  .tracks li { padding: 8px 4px; gap: 10px; grid-template-columns: 22px 44px minmax(0, 1fr) auto 28px; }
   .keys { display: none; }
 }

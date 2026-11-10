@@ -44,8 +44,35 @@ function toTrack(t) {
   };
 }
 
+// ---------- Artistas bloqueados ----------
+let blocked = [];
+
+// "Xutos & Pontapés" = "Xutos e Pontapés": ignora as palavras de ligação.
+const artistKey = (name) => normalize(name).replace(/\b(e|and|y|et|und)\b/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Lista de artistas que nunca devem tocar (nomes como o utilizador os escreveu). */
+export function setBlockedArtists(names) {
+  blocked = names.map(artistKey).filter(Boolean);
+}
+
+/**
+ * O artista está bloqueado? Também apanha duetos e participações:
+ * bloquear "Shakira" tira "Shakira & Wyclef Jean" e "Canção (feat. Shakira)".
+ */
+export function isBlocked(artist, title = '') {
+  if (!blocked.length) return false;
+  const names = ` ${artistKey(artist)} `;
+  const feat = String(title).match(/\b(?:feat|ft|featuring|with)\.?\s+([^)\]]+)/i)?.[1] || '';
+  const guests = ` ${artistKey(feat)} `;
+  return blocked.some((b) => names.includes(` ${b} `) || (feat && guests.includes(` ${b} `)));
+}
+
 const acceptable = (t, exclude) => t.readable !== false && t.preview && !exclude.has(`dz${t.id}`)
-  && !isBadVersion(t.title) && !BAD_CONTEXT.test(`${t.album?.title} ${t.artist?.name}`);
+  && !isBadVersion(t.title) && !BAD_CONTEXT.test(`${t.album?.title} ${t.artist?.name}`)
+  && !isBlocked(t.artist?.name || '', t.title);
+/** Faixa utilizável (com excerto, legível, sem versões ao vivo/karaoke…) e sem exclusões. */
+export const usable = (t) => Boolean(acceptable(t, new Set()));
+export { dz as dzGet };
 
 // ---------- Fama relativa ----------
 // A Deezer dá a cada faixa um "rank" (0 a 1 000 000) conforme é ouvida. Uma música portuguesa

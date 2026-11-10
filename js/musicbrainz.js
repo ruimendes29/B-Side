@@ -87,3 +87,57 @@ export const artistCountry = async (name) => (await artistInfo(name)).country;
 
 /** Tipo do artista no MusicBrainz ("Person", "Group", "Orchestra"…), ou null. */
 export const artistType = async (name) => (await artistInfo(name, { needType: true })).type;
+
+// ---------- Discografia (modo por artista) ----------
+// A Deezer mistura álbuns de estúdio com edições de aniversário, ao vivo e compilações, e muitas
+// vezes dá o ano da reedição. O MusicBrainz separa-os (tipos secundários) e tem a data original.
+
+/** Identificador do artista no MusicBrainz, ou null. */
+export async function artistId(name) {
+  const key = normalize(name);
+  const json = await throttled(`${ARTIST_API}?fmt=json&limit=5&query=${encodeURIComponent(`artist:"${esc(name)}"`)}`);
+  const match = (json.artists || []).find((a) => a.score >= 90
+    && (normalize(a.name) === key || (a.aliases || []).some((al) => normalize(al.name) === key)));
+  return match?.id || null;
+}
+
+/** Álbuns de estúdio por ordem: [{ id, title, year, order }] (sem ao vivo nem compilações). */
+export async function studioAlbums(mbid) {
+  const json = await throttled(`https://musicbrainz.org/ws/2/release-group?artist=${mbid}&type=album&fmt=json&limit=100`);
+  return (json['release-groups'] || [])
+    .filter((g) => !(g['secondary-types'] || []).length && g['first-release-date'])
+    .map((g) => ({ id: g.id, title: g.title, date: g['first-release-date'], year: parseInt(g['first-release-date'].slice(0, 4), 10) }))
+    .filter((g) => g.year > 1900)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((g, i) => ({ ...g, order: i + 1 }));
+}
+
+/**
+ * Em que álbum de estúdio saiu primeiro esta música, e com que número de faixa.
+ * studio = Map(id do álbum -> álbum). Devolve { albumId, trackNo } ou null (só saiu em singles, ao vivo…).
+ */
+export async function studioAppearance(artist, title, studio) {
+  const query = `recording:"${esc(title)}" AND artist:"${esc(artist)}" AND video:false`;
+  const json = await throttled(`${API}?fmt=json&limit=100&query=${encodeURIComponent(query)}`);
+  const na = normalize(artist);
+  const nt = normalize(title);
+  let best = null;
+  for (const rec of json.recordings || []) {
+    if (rec.score < 80 || normalize(rec.title) !== nt) continue;
+    const credit = normalize((rec['artist-credit'] || []).map((c) => `${c.name} ${c.joinphrase || ''}`).join(' '));
+    if (!` ${credit} `.includes(` ${na} `)) continue;
+    for (const rel of rec.releases || []) {
+      const album = studio.get(rel['release-group']?.id);
+      if (!album) continue;
+      const medium = rel.media?.[0];
+      const offset = medium?.['track-offset'];
+      const trackNo = Number.isInteger(offset) ? offset + 1 : (parseInt(medium?.track?.[0]?.number, 10) || null);
+      const date = rel.date || album.date;
+      // O álbum mais antigo; dentro dele, a edição mais antiga (a lista de faixas original).
+      if (!best || album.order < best.album.order || (album.order === best.album.order && date < best.date)) {
+        best = { album, date, trackNo };
+      }
+    }
+  }
+  return best && { albumId: best.album.id, trackNo: best.trackNo };
+}

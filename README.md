@@ -54,6 +54,33 @@ nl: {
 },
 ```
 
+## Modo por artista
+
+Em "Músicas", escolhe **Por artista**, pesquisa um ou mais artistas e adiciona-os (até 10). Só tocam músicas deles, e as categorias do Bingo passam a ser sobre o artista, com as mesmas cores:
+
+| Cor | Lado A · Iniciante | Lado B · Experiente |
+|---|---|---|
+| Rosa | Título da música | Nome do álbum |
+| Amarelo | Antes ou depois de X? | Ano exato |
+| Azul | 3 anos para cima ou para baixo | Qual dos artistas? (com 2 ou mais) / Nº da faixa no álbum (com 1) |
+| Laranja | Qual é o álbum? (3 opções) | Que álbum é? (1.º, 2.º… de estúdio) |
+| Roxo | Completar o refrão | 1 ano para cima ou para baixo |
+
+- As músicas, os excertos e a fama vêm da Deezer (as mais ouvidas de cada artista). Os **álbuns de estúdio**, a sua ordem, o ano original e o número da faixa vêm do **MusicBrainz**, porque a Deezer mistura álbuns de estúdio com edições de aniversário, ao vivo e compilações, e dá muitas vezes o ano da reedição.
+- Só entram músicas que saíram num álbum de estúdio. O ano é o do álbum, e o X de "Antes ou depois" é a mediana dos anos dos álbuns.
+- "Completar o refrão" mostra o verso que mais se repete na letra (do LRCLIB) com as últimas 2 ou 3 palavras em branco. A letra é lida no momento e não é guardada.
+- Se uma categoria não tiver dados para aquela música (ex.: sem refrão claro ou menos de 3 álbuns), o site sorteia outra.
+- A primeira música de cada artista demora uns segundos (o MusicBrainz aceita um pedido por segundo); as seguintes preparam-se enquanto se joga.
+
+## Artistas bloqueados
+
+Para que as músicas de um artista não voltem a aparecer, bloqueia-o de três maneiras:
+- nas definições, em **Artistas bloqueados** (escreve o nome e carrega em Bloquear);
+- na carta revelada, no botão **Bloquear <artista>**;
+- no histórico, no botão ao lado do ano.
+
+Também ficam de fora os duetos e as participações ("feat.") desse artista. A comparação ignora maiúsculas, acentos e palavras de ligação ("Xutos e Pontapés" = "Xutos & Pontapés"). Para desbloquear, carrega no × ao lado do nome nas definições.
+
 ## O ano
 
 A Deezer dá muitas vezes o ano de uma compilação ou reedição. Por isso, o site procura também no **MusicBrainz** a primeira edição oficial, ignorando compilações e versões ao vivo, e mostra o ano mais antigo que encontrar. Nas músicas internacionais quase sempre acerta. Nas portuguesas mais antigas os dados são mais pobres e às vezes aparece o ano de uma compilação.
@@ -71,7 +98,9 @@ A Deezer dá muitas vezes o ano de uma compilação ou reedição. Por isso, o s
 
 - `index.html` e `css/style.css`: interface
 - `js/app.js`: lógica do jogo e das definições
-- `js/bingo.js`: categorias do Hitster Bingo e respostas
+- `js/bingo.js`: categorias do Hitster Bingo (normais e do modo por artista) e respostas
+- `js/artists.js`: modo por artista (pesquisa, discografia, escolha das músicas)
+- `js/chorus.js`: verso do refrão para "Completar o refrão"
 - `js/languages.js`: línguas, pesquisas de playlists e detetor de língua
 - `js/deezer.js`: pesquisa e excertos da Deezer (JSONP)
 - `js/musicbrainz.js`: ano original e país do artista

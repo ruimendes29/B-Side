@@ -36,6 +36,7 @@
         <div class="segmented" data-setting="mode">
           <button type="button" data-value="decades">Por língua e década</button>
           <button type="button" data-value="playlists">Uma playlist</button>
+          <button type="button" data-value="artists">Por artista</button>
         </div>
         <div data-show="mode:decades" class="stack">
           <div class="chips" id="decadeChips" role="group" aria-label="Décadas"></div>
@@ -52,7 +53,17 @@
           <button type="button" data-value="known">Conhecidas</button>
           <button type="button" data-value="hits">Só êxitos</button>
         </div>
-        <p class="hint">Compara com as outras músicas da mesma língua e década: "Conhecidas" são as 50% mais ouvidas na Deezer, "Só êxitos" as 20%. Assim, um êxito português conta como conhecido mesmo com menos ouvintes do que um americano.</p>
+        <p class="hint">Compara com as outras músicas do mesmo grupo (língua e década, artista ou playlist): "Conhecidas" são as 50% mais ouvidas na Deezer, "Só êxitos" as 20%. Assim, um êxito português conta como conhecido mesmo com menos ouvintes do que um americano.</p>
+      </section>
+
+      <section class="panel" data-show="mode:artists">
+        <h3>Artistas</h3>
+        <label class="field">Pesquisar artista
+          <input type="text" id="artistSearch" placeholder="Ex.: Xutos & Pontapés" autocomplete="off">
+        </label>
+        <ul class="artist-results" id="artistResults"></ul>
+        <ul class="blocked" id="artistTags"></ul>
+        <p class="hint">Escolhe um ou mais artistas (até 10). Só tocam músicas deles, e as perguntas são sobre os álbuns de estúdio e a carreira de cada um.</p>
       </section>
 
       <section class="panel" data-show="mode:decades">
@@ -76,6 +87,16 @@
           <button type="button" data-value="random">Ponto aleatório</button>
         </div>
         <label class="toggle">Evitar músicas repetidas <input type="checkbox" id="noRepeat"></label>
+      </section>
+
+      <section class="panel">
+        <h3>Artistas bloqueados</h3>
+        <form class="block-add" id="blockForm">
+          <input type="text" id="blockInput" placeholder="Nome do artista" autocomplete="off" aria-label="Artista a bloquear">
+          <button type="submit">Bloquear</button>
+        </form>
+        <ul class="blocked" id="blockedList"></ul>
+        <p class="hint">As músicas destes artistas deixam de aparecer, incluindo duetos e participações ("feat."). Também podes bloquear um artista na carta revelada ou no histórico.</p>
       </section>
     </aside>
 
@@ -144,6 +165,7 @@
 
         <button type="button" class="btn btn-outline reveal" id="revealBtn">Revelar</button>
         <a class="open-link" id="openLink" target="_blank" rel="noopener" hidden>Abrir na Deezer ↗</a>
+        <button type="button" class="block-artist" id="blockBtn" hidden></button>
         <p class="status" id="status" role="status" aria-live="polite"></p>
       </section>
 
