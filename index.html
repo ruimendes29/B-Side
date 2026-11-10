@@ -21,6 +21,17 @@
       </div>
 
       <section class="panel">
+        <h3>Categorias do Bingo</h3>
+        <div class="segmented" data-setting="bingo">
+          <button type="button" data-value="beginner">A · Iniciante</button>
+          <button type="button" data-value="expert">B · Experiente</button>
+          <button type="button" data-value="off">Sem categoria</button>
+        </div>
+        <ul class="cat-list" id="catList"></ul>
+        <p class="hint">Antes de cada música é sorteada uma destas categorias, como a bola de espelhos do Hitster Bingo.</p>
+      </section>
+
+      <section class="panel">
         <h3>Músicas</h3>
         <div class="segmented" data-setting="mode">
           <button type="button" data-value="decades">Por língua e década</button>
@@ -34,6 +45,16 @@
         </label>
       </section>
 
+      <section class="panel">
+        <h3>Fama</h3>
+        <div class="segmented" data-setting="fame">
+          <button type="button" data-value="any">Todas</button>
+          <button type="button" data-value="known">Conhecidas</button>
+          <button type="button" data-value="hits">Só êxitos</button>
+        </div>
+        <p class="hint">Compara com as outras músicas da mesma língua e década: "Conhecidas" são as 50% mais ouvidas na Deezer, "Só êxitos" as 20%. Assim, um êxito português conta como conhecido mesmo com menos ouvintes do que um americano.</p>
+      </section>
+
       <section class="panel" data-show="mode:decades">
         <h3>Línguas</h3>
         <div class="ratio-bar" id="ratioBar" aria-hidden="true"></div>
@@ -41,7 +62,7 @@
         <label class="field add-lang">
           <select id="addLang" aria-label="Adicionar língua"></select>
         </label>
-        <p class="hint">A percentagem é a probabilidade de cada música ser dessa língua. Português inclui Portugal e Brasil.</p>
+        <p class="hint">A percentagem é a probabilidade de cada música ser dessa língua. Portugal e Brasil são línguas separadas, cada uma com a sua percentagem.</p>
       </section>
 
       <section class="panel">
@@ -68,9 +89,21 @@
       </header>
 
       <section class="stage" id="stage">
+        <div class="side-pick" id="sidePick">
+          <span>Lado do Bingo</span>
+          <div class="segmented" data-setting="bingo">
+            <button type="button" data-value="beginner">A · Iniciante</button>
+            <button type="button" data-value="expert">B · Experiente</button>
+            <button type="button" data-value="off">Sem categoria</button>
+          </div>
+        </div>
         <div class="card-wrap">
           <div class="card" id="card" role="button" tabindex="0" aria-label="Carta — clica para revelar">
             <div class="face front">
+              <div class="cat" id="frontCat" hidden>
+                <span class="cat-name" id="frontCatName"></span>
+                <span class="cat-ask" id="frontCatAsk"></span>
+              </div>
               <div class="q" aria-hidden="true">?</div>
               <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
               <p id="frontMsg">Carrega em ▶ para começar</p>
@@ -81,6 +114,10 @@
                 <div class="b-artist" id="bArtist"></div>
                 <div class="b-year" id="bYear"></div>
                 <div class="b-title" id="bTitle"></div>
+                <div class="b-cat" id="bCat" hidden>
+                  <span class="b-cat-name" id="bCatName"></span>
+                  <b class="b-cat-answer" id="bCatAnswer"></b>
+                </div>
               </div>
             </div>
           </div>

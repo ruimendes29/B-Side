@@ -14,14 +14,30 @@ As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem 
 
 Depois abre **http://127.0.0.1:8888/**. O site é só HTML, CSS e JavaScript, por isso também pode ser alojado em qualquer servidor estático, como o GitHub Pages.
 
+## Categorias do Hitster Bingo
+
+Antes de cada música é sorteada uma categoria, como a bola de espelhos do Hitster Bingo. Escolhe o lado no início (ou nas definições):
+
+| Lado A · Iniciante | Lado B · Experiente |
+|---|---|
+| Grupo ou solo (duetos e "feat." contam como grupo) | Título da música |
+| Antes de 2000? | Ano exato |
+| 4 anos para cima ou para baixo | Grupo ou cantor |
+| Década | Década |
+| 2 anos para cima ou para baixo | 3 anos para cima ou para baixo |
+
+Todas as categorias têm a mesma probabilidade. Ao revelar, a carta mostra a resposta certa dessa categoria. Para saber se é grupo ou solo, o site usa o tipo do artista no MusicBrainz. Com "Sem categoria" o jogo fica como antes, só a adivinhar o ano.
+
 ## Escolher as músicas
 
 **Por língua e década** (modo por defeito)
 - **Décadas:** escolhe uma ou mais.
-- **Línguas:** cada língua tem um peso. A percentagem ao lado é a probabilidade de a próxima música ser dessa língua. Por exemplo, Inglês 90 e Português 10 dão 90% / 10%. Com "+ Adicionar língua" podes juntar Espanhol, Francês, Italiano ou Alemão. Por defeito é 50% Inglês e 50% Português (Portugal e Brasil).
-- Como funciona: para cada língua e década, o site pesquisa playlists públicas da Deezer (ex.: "portugal anos 80", "mpb anos 80", "80s hits"). Só usa as que têm no título sinais dessa língua. Antes de tocar, cada música é confirmada pelo título e pelo país do artista, segundo o MusicBrainz. Assim, Rosalía (Espanha) não entra como música portuguesa. No inglês são aceites artistas de países sem língua na lista, como ABBA ou Kygo. Em contrapartida, uma música em inglês de um artista espanhol ou português (ex.: Shakira) fica de fora do inglês.
+- **Línguas:** cada língua tem um peso. A percentagem ao lado é a probabilidade de a próxima música ser dessa língua. Por exemplo, Inglês 90 e Português 10 dão 90% / 10%. Com "+ Adicionar língua" podes juntar Português (Brasil), Espanhol, Francês, Italiano ou Alemão. Por defeito é 50% Inglês e 50% Português (Portugal). Portugal e Brasil são grupos separados: cada um tem a sua percentagem, as suas playlists e a sua própria fama relativa.
+- Como funciona: para cada língua e década, o site pesquisa playlists públicas da Deezer (ex.: "portugal anos 80", "mpb anos 80", "80s hits"). Só usa as que têm no título sinais dessa língua. Antes de tocar, cada música é confirmada pelo título e pelo país do artista, segundo o MusicBrainz. Assim, Rosalía (Espanha) não entra como música portuguesa, e um artista brasileiro não entra em Portugal (nem o contrário). Quando o MusicBrainz não sabe o país do artista, o site pergunta à **Wikidata** (país de origem, nacionalidade ou, em último caso, a descrição, ex.: "São-Toméan musical duo"). Em Portugal e no Brasil, um artista sem país conhecido fica de fora, porque só o país os distingue. No inglês são aceites artistas de países sem língua na lista, como ABBA ou Kygo. Em contrapartida, uma música em inglês de um artista espanhol ou português (ex.: Shakira) fica de fora do inglês.
 
 **Uma playlist:** cola o link de uma playlist da Deezer.
+
+**Fama:** filtra as músicas pouco conhecidas. A Deezer dá a cada faixa um *rank* conforme é ouvida, mas uma música portuguesa conhecida tem muito menos ouvintes do que um êxito americano. Por isso cada música é comparada só com as outras da mesma língua e década (ou da mesma playlist): **Conhecidas** aceita as 50% mais ouvidas desse grupo, **Só êxitos** as 20%, **Todas** não filtra. Os ranks vistos ficam guardados no browser e a comparação fica mais certa à medida que se joga.
 
 ### Adicionar outra língua
 
@@ -55,9 +71,11 @@ A Deezer dá muitas vezes o ano de uma compilação ou reedição. Por isso, o s
 
 - `index.html` e `css/style.css`: interface
 - `js/app.js`: lógica do jogo e das definições
+- `js/bingo.js`: categorias do Hitster Bingo e respostas
 - `js/languages.js`: línguas, pesquisas de playlists e detetor de língua
 - `js/deezer.js`: pesquisa e excertos da Deezer (JSONP)
-- `js/musicbrainz.js`: ano original
+- `js/musicbrainz.js`: ano original e país do artista
+- `js/wikidata.js`: país do artista quando o MusicBrainz não o sabe
 - `js/util.js`: funções auxiliares
 
 As definições e o histórico ficam guardados no `localStorage` do browser.

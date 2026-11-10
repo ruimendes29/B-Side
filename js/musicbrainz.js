@@ -58,23 +58,32 @@ export async function firstReleaseYear(artist, title) {
   }
 }
 
-// País de cada artista, guardado no browser para não repetir pedidos ('' = desconhecido).
+// País e tipo de cada artista, guardados no browser para não repetir pedidos.
+// Entradas antigas são só o país em texto ('' = desconhecido) e não têm o tipo.
 const artistCache = store.get('mb_artists', {});
 
-/** País (código ISO, ex.: "PT") do artista, ou null se o MusicBrainz não o conhecer. */
-export async function artistCountry(name) {
+/** { country: "PT" | null, type: "Person" | "Group" | … | null } */
+async function artistInfo(name, { needType = false } = {}) {
   const key = normalize(name);
-  if (key in artistCache) return artistCache[key] || null;
+  const cached = artistCache[key];
+  if (cached && typeof cached === 'object') return cached;
+  if (typeof cached === 'string' && !needType) return { country: cached || null, type: null };
   try {
     const json = await throttled(`${ARTIST_API}?fmt=json&limit=5&query=${encodeURIComponent(`artist:"${esc(name)}"`)}`);
     const match = (json.artists || []).find((a) => a.score >= 90
       && (normalize(a.name) === key || (a.aliases || []).some((al) => normalize(al.name) === key)));
-    artistCache[key] = match?.country || '';
+    artistCache[key] = { country: match?.country || null, type: match?.type || null };
     const keys = Object.keys(artistCache);
     if (keys.length > 3000) delete artistCache[keys[0]];
     store.set('mb_artists', artistCache);
-    return artistCache[key] || null;
+    return artistCache[key];
   } catch {
-    return null; // sem rede/limite: não bloqueia
+    return { country: null, type: null }; // sem rede/limite: não bloqueia
   }
 }
+
+/** País (código ISO, ex.: "PT") do artista, ou null se o MusicBrainz não o conhecer. */
+export const artistCountry = async (name) => (await artistInfo(name)).country;
+
+/** Tipo do artista no MusicBrainz ("Person", "Group", "Orchestra"…), ou null. */
+export const artistType = async (name) => (await artistInfo(name, { needType: true })).type;

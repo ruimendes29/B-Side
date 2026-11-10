@@ -1,20 +1,33 @@
-import { $, $$, store, randInt, fmtTime, escapeHtml, minYear } from './util.js';
+import { $, $$, store, randInt, fmtTime, escapeHtml, minYear, sleep } from './util.js';
 import * as DZ from './deezer.js';
 import * as MB from './musicbrainz.js';
-import { LANGUAGES, LANG_COLORS, pickLanguage, detectLanguage, artistFits } from './languages.js';
+import * as WD from './wikidata.js';
+import { LANGUAGES, LANG_COLORS, pickLanguage, titleConfirms, artistFits } from './languages.js';
+import * as Bingo from './bingo.js';
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
+// Fama: só aceita músicas entre as X% mais ouvidas na Deezer da mesma língua e década.
+const FAME = { any: 1, known: 0.5, hits: 0.2 };
 const DEFAULTS = {
   mode: 'decades',
   decades: [1970, 1980, 1990, 2000, 2010],
-  languages: { en: 50, pt: 50 }, // percentagens (somam 100); a ordem define a cor na barra
+  languages: { en: 50, pt: 50 }, // pt = Portugal, br = Brasil; percentagens (somam 100); a ordem define a cor na barra
   dzPlaylist: '',
   duration: 10,
   start: 'random',
   noRepeat: true,
+  fame: 'known', // any | known | hits
+  bingo: 'beginner', // beginner (lado A) | expert (lado B) | off
 };
-const settings = { ...DEFAULTS, ...store.get('settings', {}) };
+const saved = store.get('settings', {});
+// Antes, "Português" incluía Portugal e Brasil: nas definições guardadas, a percentagem é repartida pelos dois.
+if (saved.languages?.pt > 0 && !saved.ptSplit && !('br' in saved.languages)) {
+  saved.languages = { ...saved.languages, pt: saved.languages.pt / 2, br: saved.languages.pt / 2 };
+}
+const settings = { ...DEFAULTS, ...saved, ptSplit: true };
 if (!['decades', 'playlists'].includes(settings.mode)) settings.mode = 'decades';
+if (!(settings.fame in FAME)) settings.fame = DEFAULTS.fame;
+if (!(settings.bingo in Bingo.SIDES) && settings.bingo !== 'off') settings.bingo = DEFAULTS.bingo;
 settings.languages = Object.fromEntries(Object.entries(settings.languages || {}).filter(([k]) => LANGUAGES[k]));
 if (!Object.keys(settings.languages).length) settings.languages = { ...DEFAULTS.languages };
 normalizeShares();
@@ -31,6 +44,9 @@ const S = {
   raf: 0,
   stopTimer: 0,
   next: null, // música pré-carregada: Promise
+  category: null, // categoria do Bingo sorteada nesta ronda
+  spinning: false,
+  spinId: 0,
 };
 
 // ---------- Definições ----------
@@ -107,7 +123,22 @@ function renderSettings() {
     const decades = ds.length === DECADES.length ? 'todas as décadas' : ds.map(decadeLabel).join(' ');
     pill = `${langs} · ${decades}`;
   }
-  $('#sourcePill').textContent = pill;
+  const side = Bingo.SIDES[settings.bingo];
+  $('#sourcePill').textContent = side ? `Bingo ${side.letter} · ${pill}` : pill;
+  renderCategoryList();
+}
+
+/** Categorias do lado escolhido, nas definições. */
+function renderCategoryList() {
+  const side = Bingo.SIDES[settings.bingo];
+  const list = $('#catList');
+  list.hidden = !side;
+  $('#sidePick').hidden = S.round > 0;
+  if (!side) return;
+  list.innerHTML = side.categories.map((k) => {
+    const c = Bingo.category(k);
+    return `<li><i style="background:${c.color}"></i><span><b>${c.name}</b>${c.ask}</span></li>`;
+  }).join('');
 }
 
 /** Lista de línguas: só é reconstruída quando se adiciona/remove uma (para não interromper o slider). */
@@ -157,8 +188,8 @@ function bindSettings() {
     const key = seg.dataset.setting;
     if (settings[key] === b.dataset.value) return;
     settings[key] = b.dataset.value;
-    // Mudar o ponto de início não invalida a próxima música, só o excerto.
-    saveSettings({ keepPrefetch: key === 'start' });
+    // Mudar o ponto de início ou o lado do Bingo não invalida a próxima música.
+    saveSettings({ keepPrefetch: key === 'start' || key === 'bingo' });
   }));
 
   $('#decadeChips').addEventListener('click', (e) => {
@@ -234,13 +265,13 @@ async function fetchByLanguage(exclude, decades) {
   const lang = pickLanguage(settings.languages);
   if (!lang) throw new Error('Põe pelo menos uma língua acima de 0%.');
   try {
-    return await DZ.randomByLanguage({ lang, decades, exclude });
+    return await DZ.randomByLanguage({ lang, decades, exclude, top: FAME[settings.fame] });
   } catch (e) {
     // Se uma língua não tiver nada nestas décadas, tenta as outras em vez de bloquear o jogo.
     const others = Object.fromEntries(Object.entries(settings.languages).filter(([k]) => k !== lang));
     const fallback = pickLanguage(others);
     if (!fallback) throw e;
-    return DZ.randomByLanguage({ lang: fallback, decades, exclude });
+    return DZ.randomByLanguage({ lang: fallback, decades, exclude, top: FAME[settings.fame] });
   }
 }
 
@@ -255,8 +286,11 @@ const inDecades = (year, decades) => decades.some((d) => year >= d && year < d +
  * (ex.: Rosalía numa playlist de música portuguesa). Usa o título e o país do artista.
  */
 async function fitsLanguage(track) {
-  if (detectLanguage(track.title) === track.lang) return true;
-  return artistFits(track.lang, await MB.artistCountry(track.artists[0]));
+  if (titleConfirms(track.lang, track.title)) return true;
+  const artist = track.artists[0];
+  // Se o MusicBrainz não souber o país, pergunta à Wikidata.
+  const country = (await MB.artistCountry(artist)) || (await WD.artistCountry(artist));
+  return artistFits(track.lang, country);
 }
 
 class StaleError extends Error {}
@@ -273,7 +307,7 @@ async function fetchTrack(skipIds = []) {
   if (settings.mode !== 'decades') {
     const id = DZ.parsePlaylistId(settings.dzPlaylist);
     if (!id) throw new Error('Cola o link de uma playlist da Deezer nas definições.');
-    const track = await DZ.randomFromPlaylist(id, exclude);
+    const track = await DZ.randomFromPlaylist(id, exclude, FAME[settings.fame]);
     track.yearPromise = resolveYear(track);
     return track;
   }
@@ -359,6 +393,9 @@ async function nextTrack() {
   flip(false);
   setPhase('loading');
   setStatus('');
+  // Primeiro sorteia-se a categoria (enquanto a música carrega), depois toca a música.
+  const spin = settings.bingo in Bingo.SIDES ? spinCategory(Bingo.drawCategory(settings.bingo)) : (S.category = null, showCategory(null), null);
+  $('#sidePick').hidden = true;
   const prefetched = S.next?.gen === settingsGen ? S.next.promise : null;
   S.next = null;
   clearTimeout(prefetchTimer);
@@ -369,12 +406,15 @@ async function nextTrack() {
       track = await fetchTrack([S.track?.id]).catch((e) => { if (e instanceof StaleError) return null; throw e; });
     }
     if (!track) throw new Error('As definições mudaram muitas vezes seguidas. Tenta outra vez.');
+    if (spin && !(await spin)) return; // outra ronda começou entretanto
+    if (S.category?.key === 'group') track.groupPromise ??= isGroup(track);
     S.track = track;
     S.revealed = false;
     S.round++;
     played.add(track.id);
     store.set('played', [...played].slice(-3000));
     $('#roundNo').textContent = S.round;
+    $('#sidePick').hidden = true;
     $('#openLink').hidden = true;
     $('#fill').style.width = '0%';
     $('#tCur').textContent = '0:00';
@@ -382,9 +422,74 @@ async function nextTrack() {
     await playClip();
     prefetch();
   } catch (e) {
+    S.spinId++;
+    S.spinning = false;
+    if (!S.track) { showCategory(null); $('#sidePick').hidden = false; }
     setPhase(S.track ? 'ready' : 'idle');
     setStatus(e.message, 'error');
   }
+}
+
+// ---------- Categorias do Bingo ----------
+
+/** Mostra a categoria na frente da carta (ou esconde, com null). */
+function showCategory(cat, { rolling = false } = {}) {
+  const box = $('#frontCat');
+  box.hidden = !cat;
+  box.classList.toggle('rolling', rolling);
+  if (!cat) return;
+  box.style.setProperty('--cat', cat.color);
+  $('#frontCatName').textContent = cat.name;
+  $('#frontCatAsk').textContent = rolling ? '' : cat.ask;
+}
+
+/**
+ * Animação da bola de espelhos: passa pelas categorias do lado, cada vez mais devagar,
+ * e para na sorteada. Devolve false se entretanto começou outra ronda.
+ */
+async function spinCategory(cat) {
+  const id = ++S.spinId;
+  S.category = cat;
+  S.spinning = true;
+  renderControls();
+  const keys = Bingo.SIDES[settings.bingo].categories;
+  let i = keys.indexOf(cat.key) + randInt(1, keys.length - 1);
+  // Múltiplo do número de categorias + o que falta para parar logo antes da sorteada.
+  const steps = 2 * keys.length + ((keys.indexOf(cat.key) - i) % keys.length + keys.length) % keys.length;
+  for (let n = 0; n < steps; n++, i++) {
+    if (id !== S.spinId) return false;
+    showCategory(Bingo.category(keys[i % keys.length]), { rolling: true });
+    await sleep(60 + n * n * 1.6);
+  }
+  if (id !== S.spinId) return false;
+  showCategory(cat);
+  S.spinning = false;
+  renderControls();
+  await sleep(500);
+  return id === S.spinId;
+}
+
+/** Grupo (true), solo (false) ou desconhecido (null). Duetos e "feat." contam como grupo. */
+async function isGroup(track) {
+  const artist = track.artists[0] || '';
+  if (Bingo.looksLikeSeveral(artist, track.title)) return true;
+  return Bingo.isGroupType(await MB.artistType(artist));
+}
+
+/** Resposta da categoria na carta revelada. */
+async function showAnswer(t) {
+  const cat = S.category;
+  $('#bCat').hidden = !cat;
+  $('.back').classList.toggle('has-cat', !!cat);
+  if (!cat) return;
+  $('#bCat').style.setProperty('--cat', cat.color);
+  $('#bCatName').textContent = cat.name;
+  $('#bCatAnswer').textContent = '…';
+  const group = cat.key === 'group' ? await (t.groupPromise ??= isGroup(t)) : null;
+  if (S.track !== t) return;
+  $('#bCatAnswer').textContent = Bingo.answer(cat.key, {
+    year: t.year, title: t.title, artist: t.artists.join(', '), group,
+  });
 }
 
 async function reveal() {
@@ -398,15 +503,18 @@ async function reveal() {
   flip(true);
   renderControls();
 
+  $('#bCat').hidden = true;
   const year = await t.yearPromise;
   if (S.track !== t) return;
   t.year = year;
   $('#bYear').textContent = year ?? '????';
+  showAnswer(t);
   $('#openLink').href = t.link || '#';
   $('#openLink').hidden = !t.link;
 
   history.unshift({
     id: t.id, title: t.title, artist: t.artists.join(', '), year, image: t.image, link: t.link, lang: t.lang,
+    cat: S.category?.key,
   });
   history = history.slice(0, 200);
   store.set('history', history);
@@ -450,10 +558,10 @@ function renderControls() {
     idle: 'Carrega em ▶ para começar',
     loading: 'A escolher uma música…',
     buffering: 'A preparar…',
-    playing: 'Que ano é este?',
+    playing: S.category ? 'Escrevam a resposta!' : 'Que ano é este?',
     ready: 'Já sabem? Carrega em Revelar.',
   }[phase];
-  $('#frontMsg').textContent = msg;
+  $('#frontMsg').textContent = S.spinning ? 'A sortear a categoria…' : msg;
 }
 
 function renderHistory() {
@@ -468,10 +576,15 @@ function renderHistory() {
       ${h.image ? `<img src="${escapeHtml(h.image)}" alt="" loading="lazy">` : '<span class="noimg"></span>'}
       <span class="info">
         ${h.link ? `<a class="t" href="${escapeHtml(h.link)}" target="_blank" rel="noopener">${escapeHtml(h.title)}</a>` : `<span class="t">${escapeHtml(h.title)}</span>`}
-        <span class="a">${h.lang && LANGUAGES[h.lang] ? `<span class="tag">${LANGUAGES[h.lang].code}</span>` : ''}${escapeHtml(h.artist)}</span>
+        <span class="a">${h.cat ? catTag(h.cat) : ''}${h.lang && LANGUAGES[h.lang] ? `<span class="tag">${LANGUAGES[h.lang].code}</span>` : ''}${escapeHtml(h.artist)}</span>
       </span>
       <span class="y">${h.year ?? '—'}</span>
     </li>`).join('');
+}
+
+function catTag(key) {
+  const c = Bingo.category(key);
+  return c.name ? `<i class="cat-dot" style="background:${c.color}" title="${escapeHtml(c.name)}"></i>` : '';
 }
 
 let statusTimer = 0;

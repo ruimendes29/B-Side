@@ -1,8 +1,8 @@
 // Deezer: pesquisa de músicas e excertos de 30 s. A API não tem CORS, por isso usamos JSONP.
 import {
-  pick, randInt, yearOf, minYear, cleanTitle, isBadVersion, BAD_CONTEXT, normalize, escapeQuery,
+  pick, randInt, yearOf, minYear, cleanTitle, isBadVersion, BAD_CONTEXT, normalize, escapeQuery, store,
 } from './util.js';
-import { LANGUAGES, detectLanguage } from './languages.js';
+import { LANGUAGES, detectLanguage, familyOf } from './languages.js';
 
 const API = 'https://api.deezer.com';
 let seq = 0;
@@ -47,11 +47,43 @@ function toTrack(t) {
 const acceptable = (t, exclude) => t.readable !== false && t.preview && !exclude.has(`dz${t.id}`)
   && !isBadVersion(t.title) && !BAD_CONTEXT.test(`${t.album?.title} ${t.artist?.name}`);
 
-async function randomTrackFrom(playlistId, total, exclude, extra = () => true) {
+// ---------- Fama relativa ----------
+// A Deezer dá a cada faixa um "rank" (0 a 1 000 000) conforme é ouvida. Uma música portuguesa
+// conhecida tem um rank muito mais baixo do que um êxito americano, por isso o rank não se compara
+// com um valor fixo: compara-se com as outras músicas do mesmo grupo (língua + década, ou a playlist).
+// Cada grupo guarda os ranks das faixas já vistas (id -> rank) no browser.
+const RANK_KEEP = 400;
+// 'dz_ranks2': os dados antigos ('dz_ranks') misturavam Portugal e Brasil no mesmo grupo.
+store.remove('dz_ranks');
+const rankStats = store.get('dz_ranks2', {});
+let saveRanksTimer = 0;
+
+function rememberRanks(group, tracks) {
+  const seen = (rankStats[group] ||= {});
+  for (const t of tracks) if (t.rank > 0) { delete seen[t.id]; seen[t.id] = t.rank; }
+  const ids = Object.keys(seen);
+  for (let i = 0; i < ids.length - RANK_KEEP; i++) delete seen[ids[i]]; // esquece os mais antigos
+  clearTimeout(saveRanksTimer);
+  saveRanksTimer = setTimeout(() => store.set('dz_ranks2', rankStats), 1000);
+}
+
+/** Rank mínimo para ficar entre as `top` (0–1) mais ouvidas do grupo. */
+function rankThreshold(group, top) {
+  if (top >= 1) return 0;
+  const ranks = Object.values(rankStats[group] || {}).sort((a, b) => a - b);
+  return ranks.length ? ranks[Math.floor(ranks.length * (1 - top))] : 0;
+}
+
+async function randomTrackFrom(playlistId, total, exclude, { extra = () => true, group, top = 1 } = {}) {
   const index = total > 25 ? randInt(0, total - 25) : 0;
   const r = await dz(`/playlist/${playlistId}/tracks`, { index, limit: 25 });
-  const ok = (r.data || []).filter((t) => acceptable(t, exclude) && extra(t));
-  return ok.length ? toTrack(pick(ok)) : null;
+  const tracks = r.data || [];
+  if (group) rememberRanks(group, tracks);
+  const min = group ? rankThreshold(group, top) : 0;
+  const ok = tracks.filter((t) => acceptable(t, exclude) && extra(t) && (t.rank || 0) >= min);
+  if (!ok.length) return null;
+  const t = pick(ok);
+  return { ...toTrack(t), rank: t.rank };
 }
 
 const playlistCache = new Map();
@@ -68,15 +100,16 @@ async function playlistsFor(query, lang) {
 }
 
 /** Uma música ao acaso de uma das décadas, numa língua (chave de LANGUAGES). */
-export async function randomByLanguage({ lang, decades, exclude }) {
+export async function randomByLanguage({ lang, decades, exclude, top = 1 }) {
   const L = LANGUAGES[lang];
   // Títulos claramente noutra língua são rejeitados (as playlists nem sempre são "puras").
-  const sameLanguage = (t) => { const det = detectLanguage(t.title); return !det || det === lang; };
+  const sameLanguage = (t) => { const det = detectLanguage(t.title); return !det || det === familyOf(lang); };
   for (let attempt = 0; attempt < 8; attempt++) {
-    const lists = await playlistsFor(pick(L.queries(pick(decades))), L);
+    const decade = pick(decades);
+    const lists = await playlistsFor(pick(L.queries(decade)), L);
     if (!lists.length) continue;
     const p = pick(lists);
-    const t = await randomTrackFrom(p.id, p.nb_tracks, exclude, sameLanguage);
+    const t = await randomTrackFrom(p.id, p.nb_tracks, exclude, { extra: sameLanguage, group: `${lang}:${decade}`, top });
     if (t) return { ...t, lang };
   }
   throw new Error(`Não encontrei músicas em ${L.name.toLowerCase()} para estas décadas. Experimenta outras décadas.`);
@@ -89,10 +122,10 @@ export function parsePlaylistId(input) {
 }
 
 const totals = new Map();
-export async function randomFromPlaylist(id, exclude) {
+export async function randomFromPlaylist(id, exclude, top = 1) {
   if (!totals.has(id)) totals.set(id, (await dz(`/playlist/${id}`)).nb_tracks || 0);
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const t = await randomTrackFrom(id, totals.get(id), exclude);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const t = await randomTrackFrom(id, totals.get(id), exclude, { group: `playlist:${id}`, top });
     if (t) return t;
   }
   throw new Error('Não encontrei músicas novas nessa playlist da Deezer.');

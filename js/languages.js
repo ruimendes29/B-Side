@@ -5,6 +5,8 @@
 //   must     (opcional) o título da playlist tem de corresponder a isto
 //   avoid    (opcional) playlists com este título são ignoradas
 //   words    palavras frequentes, para detetar títulos de músicas noutra língua
+//   family   (opcional) usa as palavras de outra entrada (ex.: Brasil usa as do português);
+//            entre estas o título não chega para distinguir, decide o país do artista
 //   countries países (ISO) cujos artistas cantam normalmente nesta língua
 import { randInt } from './util.js';
 
@@ -20,15 +22,29 @@ export const LANGUAGES = {
     words: "the you me my i i'm your love baby it it's is on of and to be all what don't can't we girl boy heart night never time like just oh yeah",
     countries: 'GB US IE AU NZ CA JM',
   },
+  // Portugal e Brasil são grupos à parte: cada um tem a sua percentagem e a sua fama relativa.
   pt: {
-    name: 'Português',
+    name: 'Português (Portugal)',
     code: 'PT',
     queries: (d) => (d >= 2010
-      ? [`musica portuguesa ${yearIn(d)}`, `musica nacional ${yearIn(d)}`, `mais tocadas brasil ${yearIn(d)}`]
-      : [`portugal anos ${short(d)}`, `musica portuguesa anos ${short(d)}`, `mpb anos ${short(d)}`, `rock nacional anos ${short(d)}`]),
-    must: /portug|nacional|mpb|brasil|brazil|tuga|pimba|fado|lusa|🇵🇹|🇧🇷/i,
+      ? [`musica portuguesa ${yearIn(d)}`, `portugal hits ${yearIn(d)}`, `musicas portuguesas mais tocadas ${yearIn(d)}`]
+      : [`portugal anos ${short(d)}`, `musica portuguesa anos ${short(d)}`, `musicas portuguesas anos ${short(d)}`]),
+    must: /portug|tuga|pimba|fado|lusa|🇵🇹/i,
+    // "Clássicos da MPB" aparece nas pesquisas de "música portuguesa"; as "club hits" da Topsify Portugal são internacionais.
+    avoid: /brasil|brazil|mpb|sertanej|pagode|forr[oó]|ax[eé]|samba|bossa|club|topsify|🇧🇷/i,
     words: 'o os as um uma do da dos das que não nao eu tu meu minha teu tua amor coração é em no na com para sem vida mais quando ser está vou',
-    countries: 'PT BR AO MZ CV GW ST TL',
+    countries: 'PT AO MZ CV GW ST TL',
+  },
+  br: {
+    name: 'Português (Brasil)',
+    code: 'BR',
+    family: 'pt',
+    queries: (d) => (d >= 2010
+      ? [`mais tocadas brasil ${yearIn(d)}`, `hits brasil ${yearIn(d)}`, `sertanejo ${yearIn(d)}`]
+      : [`mpb anos ${short(d)}`, `rock nacional anos ${short(d)}`, `musicas brasileiras anos ${short(d)}`, `brasil anos ${short(d)}`]),
+    must: /brasil|brazil|mpb|nacional|sertanej|pagode|samba|🇧🇷/i,
+    avoid: /portug|tuga|pimba|fado|internacional|🇵🇹/i,
+    countries: 'BR',
   },
   es: {
     name: 'Espanhol',
@@ -67,14 +83,21 @@ export const LANGUAGES = {
 // Cores dos segmentos da barra de proporções (tons de verde, por ordem de adição).
 export const LANG_COLORS = ['#1ed760', '#0f7a36', '#9ef0bb', '#159a47', '#5fe391', '#0a5226'];
 
-const WORD_SETS = Object.fromEntries(Object.entries(LANGUAGES).map(([k, l]) => [k, new Set(l.words.split(' '))]));
+const WORD_SETS = Object.fromEntries(Object.entries(LANGUAGES).filter(([, l]) => l.words).map(([k, l]) => [k, new Set(l.words.split(' '))]));
+
+/** Língua "base" de uma entrada: 'br' -> 'pt'. É o que detectLanguage devolve. */
+export const familyOf = (lang) => LANGUAGES[lang]?.family || lang;
+const hasSibling = (lang) => Object.keys(LANGUAGES).some((k) => k !== lang && familyOf(k) === familyOf(lang));
+
+/** O título confirma a língua sozinho? Entre Portugal e Brasil nunca: decide o país do artista. */
+export const titleConfirms = (lang, title) => !hasSibling(lang) && detectLanguage(title) === lang;
 const LETTERS = [[/[ãõ]/, 'pt'], [/ñ/, 'es'], [/[ßäöü]/, 'de'], [/[èêë]/, 'fr'], [/[ìò]/, 'it']];
 
-/** Tenta adivinhar a língua de um título. Só responde quando tem bastante certeza. */
+/** Tenta adivinhar a língua de um título (devolve a família: 'pt' serve para Portugal e Brasil). Só responde quando tem bastante certeza. */
 export function detectLanguage(title) {
   const text = String(title).toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '');
   const words = text.split(/[^a-zà-ÿœ']+/).filter(Boolean);
-  const scores = Object.fromEntries(Object.keys(LANGUAGES).map((k) => [k, 0]));
+  const scores = Object.fromEntries(Object.keys(WORD_SETS).map((k) => [k, 0]));
   for (const w of words) for (const k in WORD_SETS) if (WORD_SETS[k].has(w)) scores[k]++;
   for (const [re, k] of LETTERS) if (re.test(text)) scores[k] += 2;
   const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -87,12 +110,13 @@ for (const [k, l] of Object.entries(LANGUAGES)) for (const cc of (l.countries ||
 
 /**
  * O artista deste país costuma cantar na língua pedida?
- * - país desconhecido: aceita (a playlist já foi escolhida por língua);
+ * - país desconhecido: aceita (a playlist já foi escolhida por língua), exceto entre Portugal e Brasil,
+ *   onde só o país os distingue;
  * - inglês: aceita países "neutros" (ex.: ABBA, Kygo), rejeita os de outra língua da lista;
  * - outras línguas: o país tem de ser dessa língua.
  */
 export function artistFits(lang, country) {
-  if (!country) return true;
+  if (!country) return !hasSibling(lang);
   const artistLang = COUNTRY_LANG[country] || null;
   if (lang === 'en') return !artistLang || artistLang === 'en';
   return artistLang === lang;
