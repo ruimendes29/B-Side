@@ -4,7 +4,7 @@ Um jogo de música no browser: adivinha o ano de músicas aleatórias. Toca um e
 
 As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem configuração.
 
-**Jogar online:** https://hitsterfake.vercel.app
+**Jogar online:** https://b-side-game.vercel.app
 
 ## Como abrir
 
