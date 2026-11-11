@@ -11,6 +11,12 @@
   --green-hover: #3be477;
   --green-dark: #1db954;
   --red: #f3727f;
+  /* Cores das categorias (src/theme/colors.ts) */
+  --cat-pink: #ff4fa3;
+  --cat-yellow: #ffd23f;
+  --cat-blue: #3ec6ff;
+  --cat-orange: #ff8a3d;
+  --cat-purple: #a77bff;
   --radius: 8px;
   color-scheme: dark;
 }
@@ -45,7 +51,11 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none !important; 
 .brand {
   display: flex; align-items: center; gap: 10px;
   font-weight: 800; font-size: 22px; letter-spacing: -.02em;
-  padding: 0 8px 8px;
+  /* Fica no topo ao fazer scroll das definições; -20px anula o padding de cima da .sidebar. */
+  position: sticky; top: -20px; z-index: 2;
+  margin: -20px -12px 0; padding: 20px 20px 12px;
+  background: var(--bg);
+  box-shadow: 0 10px 12px -10px rgba(0, 0, 0, .8);
 }
 .brand svg { width: 32px; height: 32px; }
 .brand b { font-weight: inherit; color: var(--green); }
@@ -84,6 +94,16 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none !important; 
   font-size: 14px; font-weight: 500;
   outline: none;
   transition: border-color .15s;
+}
+/* Seta própria: a nativa ficava colada à borda direita e saía para fora. */
+.field select {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5' fill='none' stroke='%23b3b3b3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  cursor: pointer;
 }
 .field input[type="text"]:hover, .field select:hover { border-color: #3e3e3e; }
 .field input[type="text"]:focus, .field select:focus { border-color: #fff; }
@@ -405,7 +425,7 @@ kbd {
 }
 .tracks li.empty { display: block; color: var(--sub); font-size: 14px; padding: 8px 12px; }
 .tracks li.empty:hover { background: none; }
-.keys { padding: 0 12px; }
+.keys { padding: 0 12px; margin-bottom: 24px; }
 
 .scrim { display: none; }
 

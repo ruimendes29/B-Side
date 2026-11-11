@@ -1,3 +1,4 @@
+import { Tooltip } from '../../tooltips/Tooltip';
 import { useState } from 'react';
 
 interface Props {
@@ -18,7 +19,9 @@ export function BlockedPanel({ blocked, onBlock, onUnblock }: Props) {
       <ul className="blocked">
         {blocked.map((b) => (
           <li key={b}><span>{b}</span>
-            <button type="button" aria-label={`Desbloquear ${b}`} title="Desbloquear" onClick={() => onUnblock(b)}>×</button>
+            <Tooltip content="Desbloquear">
+              <button type="button" aria-label={`Desbloquear ${b}`} onClick={() => onUnblock(b)}>×</button>
+            </Tooltip>
           </li>
         ))}
         {!blocked.length && <li className="empty">Nenhum artista bloqueado.</li>}

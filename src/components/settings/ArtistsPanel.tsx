@@ -1,3 +1,4 @@
+import { Tooltip } from '../../tooltips/Tooltip';
 import { useEffect, useState } from 'react';
 import type { ArtistRef, Settings } from '../../types';
 import { MAX_ARTISTS, type UpdateSettings } from '../../hooks/useSettings';
@@ -44,7 +45,9 @@ export function ArtistsPanel({ settings, update, setStatus }: { settings: Settin
       <ul className="blocked">
         {settings.artists.map((a) => (
           <li key={a.id}><span>{a.name}</span>
-            <button type="button" aria-label={`Remover ${a.name}`} title="Remover" onClick={() => update({ artists: settings.artists.filter((x) => x.id !== a.id) })}>×</button>
+            <Tooltip content="Remover">
+              <button type="button" aria-label={`Remover ${a.name}`} onClick={() => update({ artists: settings.artists.filter((x) => x.id !== a.id) })}>×</button>
+            </Tooltip>
           </li>
         ))}
         {!settings.artists.length && <li className="empty">Ainda nenhum artista.</li>}

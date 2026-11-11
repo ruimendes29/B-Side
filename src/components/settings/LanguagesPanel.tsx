@@ -1,3 +1,4 @@
+import { Tooltip } from '../../tooltips/Tooltip';
 import type { LangKey, Settings } from '../../types';
 import type { UpdateSettings } from '../../hooks/useSettings';
 import { languages } from '../../languages/LanguageService';
@@ -21,8 +22,10 @@ export function LanguagesPanel({ settings, update }: { settings: Settings; updat
             <div key={l.key} className={`lang-row${l.pct === 0 ? ' off' : ''}`}>
               <span className="lang-name"><i style={{ background: l.color }} />{name}</span>
               <b className="lang-pct">{l.pct}%</b>
-              <button type="button" className="lang-remove" hidden={single} aria-label={`Remover ${name}`} title="Remover"
-                onClick={() => update((s) => ({ languages: removeShare(s.languages, l.key) }))}>×</button>
+              <Tooltip content="Remover">
+                <button type="button" className="lang-remove" hidden={single} aria-label={`Remover ${name}`}
+                  onClick={() => update((s) => ({ languages: removeShare(s.languages, l.key) }))}>×</button>
+              </Tooltip>
               <input type="range" min="0" max="100" step="any" value={l.weight} disabled={single} aria-label={`Percentagem de ${name}`}
                 onChange={(e) => update((s) => ({ languages: setShare(s.languages, l.key, +e.target.value) }))} />
             </div>

@@ -3,6 +3,7 @@
 import type { ArtistFacts, Track } from '../types';
 import { shuffle } from '../lib/util';
 import { musicBrainz } from '../services/MusicBrainzService';
+import { type CategoryTone, toneVar } from '../theme/colors';
 
 export interface CategoryContext {
   /** Nomes dos artistas escolhidos (modo por artista). */
@@ -14,8 +15,11 @@ export abstract class Category {
     readonly key: string,
     readonly name: string,
     readonly ask: string,
-    readonly color: string,
+    readonly tone: CategoryTone,
   ) {}
+
+  /** Cor para CSS (variável --cat-*). */
+  get color() { return toneVar(this.tone); }
 
   /** A música tem os dados de que esta categoria precisa? */
   isAvailable(_track: Track, _ctx: CategoryContext): boolean {
@@ -41,7 +45,7 @@ abstract class YearCategory extends Category {
 }
 
 export class YearWindowCategory extends YearCategory {
-  constructor(readonly range: number, color: string) {
+  constructor(readonly range: number, color: CategoryTone) {
     super(
       `near${range}`,
       `${range} ano${range > 1 ? 's' : ''} para cima ou para baixo`,
@@ -53,12 +57,12 @@ export class YearWindowCategory extends YearCategory {
 }
 
 export class Before2000Category extends YearCategory {
-  constructor(color: string) { super('before2000', 'Antes de 2000?', 'Saiu antes de 2000? Sim ou não.', color); }
+  constructor(color: CategoryTone) { super('before2000', 'Antes de 2000?', 'Saiu antes de 2000? Sim ou não.', color); }
   protected answerFor(y: number) { return y < 2000 ? 'Sim, antes de 2000' : 'Não, 2000 ou depois'; }
 }
 
 export class DecadeCategory extends YearCategory {
-  constructor(color: string) { super('decade', 'Década', 'Em que década saiu?', color); }
+  constructor(color: CategoryTone) { super('decade', 'Década', 'Em que década saiu?', color); }
   protected answerFor(y: number) {
     const d = Math.floor(y / 10) * 10;
     return `Anos ${d < 2000 ? String(d).slice(2) : d}`;
@@ -66,19 +70,19 @@ export class DecadeCategory extends YearCategory {
 }
 
 export class ExactYearCategory extends YearCategory {
-  constructor(color: string) { super('exact', 'Ano exato', 'Escreve o ano. Só vale o ano certo.', color); }
+  constructor(color: CategoryTone) { super('exact', 'Ano exato', 'Escreve o ano. Só vale o ano certo.', color); }
   protected answerFor(y: number) { return String(y); }
 }
 
 // ---------- Título e artista ----------
 
 export class TitleCategory extends Category {
-  constructor(color: string) { super('title', 'Título da música', 'Como se chama a música?', color); }
+  constructor(color: CategoryTone) { super('title', 'Título da música', 'Como se chama a música?', color); }
   answer(t: Track) { return t.title; }
 }
 
 export class SingerCategory extends Category {
-  constructor(color: string) { super('artist', 'Grupo ou cantor', 'Quem canta? Num dueto basta o artista principal.', color); }
+  constructor(color: CategoryTone) { super('artist', 'Grupo ou cantor', 'Quem canta? Num dueto basta o artista principal.', color); }
   answer(t: Track) { return t.artists.join(', '); }
 }
 
@@ -95,7 +99,7 @@ export function isGroupType(type: string | null): boolean | null {
 export class GroupOrSoloCategory extends Category {
   private readonly cache = new Map<string, Promise<boolean | null>>();
 
-  constructor(color: string) { super('group', 'Grupo ou solo', 'É um grupo ou um artista a solo? Duetos e "feat." contam como grupo.', color); }
+  constructor(color: CategoryTone) { super('group', 'Grupo ou solo', 'É um grupo ou um artista a solo? Duetos e "feat." contam como grupo.', color); }
 
   /** Grupo (true), solo (false) ou desconhecido (null). Duetos e "feat." contam como grupo. */
   isGroup(t: Track) {
@@ -126,7 +130,7 @@ abstract class ArtistCategory extends Category {
 }
 
 export class BeforeAfterCategory extends ArtistCategory {
-  constructor(color: string) { super('before_after', 'Antes ou depois de…', 'Foi lançada antes ou depois de uma data?', color); }
+  constructor(color: CategoryTone) { super('before_after', 'Antes ou depois de…', 'Foi lançada antes ou depois de uma data?', color); }
   isAvailable(t: Track) { return Boolean(t.facts && t.facts.studioTitles.length >= 2); }
   prompt(t: Track | null) { return t?.facts ? `Foi lançada antes ou depois de ${t.facts.pivot}?` : this.ask; }
   answer(t: Track) {
@@ -137,12 +141,12 @@ export class BeforeAfterCategory extends ArtistCategory {
 }
 
 export class AlbumNameCategory extends ArtistCategory {
-  constructor(color: string) { super('album_name', 'Nome do álbum', 'Em que álbum de estúdio está?', color); }
+  constructor(color: CategoryTone) { super('album_name', 'Nome do álbum', 'Em que álbum de estúdio está?', color); }
   answer(t: Track) { return this.facts(t).albumName; }
 }
 
 export class AlbumChoiceCategory extends ArtistCategory {
-  constructor(color: string) { super('album_choice', 'Qual é o álbum?', 'Escolhe entre três álbuns de estúdio.', color); }
+  constructor(color: CategoryTone) { super('album_choice', 'Qual é o álbum?', 'Escolhe entre três álbuns de estúdio.', color); }
   isAvailable(t: Track) { return Boolean(t.facts && t.facts.studioTitles.length >= 3); }
   prompt(t: Track | null, _ctx: CategoryContext, rng: () => number = Math.random) {
     if (!t?.facts) return this.ask;
@@ -154,13 +158,13 @@ export class AlbumChoiceCategory extends ArtistCategory {
 }
 
 export class AlbumOrderCategory extends ArtistCategory {
-  constructor(color: string) { super('album_order', 'Que álbum é?', 'Qual é a ordem do álbum na discografia? (1.º é o primeiro)', color); }
+  constructor(color: CategoryTone) { super('album_order', 'Que álbum é?', 'Qual é a ordem do álbum na discografia? (1.º é o primeiro)', color); }
   isAvailable(t: Track) { return Boolean(t.facts && t.facts.studioTitles.length >= 2); }
   answer(t: Track) { return `${this.facts(t).albumOrder}.º álbum de estúdio`; }
 }
 
 export class ArtistPickCategory extends ArtistCategory {
-  constructor(color: string) { super('artist_pick', 'Qual dos artistas?', 'Quem canta esta música?', color); }
+  constructor(color: CategoryTone) { super('artist_pick', 'Qual dos artistas?', 'Quem canta esta música?', color); }
   isAvailable(t: Track, ctx: CategoryContext) { return Boolean(t.facts) && ctx.artistNames.length >= 2; }
   prompt(_t: Track | null, ctx: CategoryContext) {
     return ctx.artistNames.length ? ctx.artistNames.map((o, i) => `${i + 1} · ${o}`).join('   ') : this.ask;
@@ -169,14 +173,14 @@ export class ArtistPickCategory extends ArtistCategory {
 }
 
 export class TrackNumberCategory extends ArtistCategory {
-  constructor(color: string) { super('track_no', 'Nº da faixa no álbum', 'Em que posição está no álbum? Vale ±1.', color); }
+  constructor(color: CategoryTone) { super('track_no', 'Nº da faixa no álbum', 'Em que posição está no álbum? Vale ±1.', color); }
   isAvailable(t: Track) { return t.facts?.trackNo != null; }
   prompt(t: Track | null) { return t ? 'Qual é o número da faixa no álbum? (vale ±1)' : this.ask; }
   answer(t: Track) { return `Faixa ${this.facts(t).trackNo}`; }
 }
 
 export class ChorusCategory extends ArtistCategory {
-  constructor(color: string) { super('chorus', 'Completar o refrão', 'Escreve as palavras que faltam no verso do refrão.', color); }
+  constructor(color: CategoryTone) { super('chorus', 'Completar o refrão', 'Escreve as palavras que faltam no verso do refrão.', color); }
   isAvailable(t: Track) { return Boolean(t.facts?.chorus); }
   prompt(t: Track | null) {
     const c = t?.facts?.chorus;

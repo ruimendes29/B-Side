@@ -1,5 +1,5 @@
 // Lado A (iniciante) e lado B (experiente).
-// As cores são inventadas; as cinco posições têm a mesma cor nos dois modos.
+// As cores são inventadas (variáveis --cat-* em style.css); as cinco posições têm a mesma cor nos dois modos.
 import type { Mode, SideKey, Track } from '../types';
 import {
   AlbumChoiceCategory, AlbumNameCategory, AlbumOrderCategory, ArtistPickCategory, BeforeAfterCategory,
@@ -7,11 +7,11 @@ import {
   GroupOrSoloCategory, SingerCategory, TitleCategory, TrackNumberCategory, YearWindowCategory,
 } from './Category';
 
-const PINK = '#ff4fa3';
-const YELLOW = '#ffd23f';
-const BLUE = '#3ec6ff';
-const ORANGE = '#ff8a3d';
-const PURPLE = '#a77bff';
+const PINK = 'pink';
+const YELLOW = 'yellow';
+const BLUE = 'blue';
+const ORANGE = 'orange';
+const PURPLE = 'purple';
 
 export const group = new GroupOrSoloCategory(PINK);
 const title = new TitleCategory(PINK);

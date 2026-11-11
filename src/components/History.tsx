@@ -1,3 +1,4 @@
+import { Tooltip } from '../tooltips/Tooltip';
 import type { HistoryEntry } from '../types';
 import { languages } from '../languages/LanguageService';
 import { categoryByKey } from '../categories/sides';
@@ -11,12 +12,19 @@ interface Props {
 
 function CategoryDot({ catKey }: { catKey: string }) {
   const c = categoryByKey(catKey);
-  return c ? <i className="cat-dot" style={{ background: c.color }} title={c.name} /> : null;
+  if (!c) return null;
+  return (
+    <Tooltip content={c.name} theme={c.tone}>
+      <i className="cat-dot" role="img" aria-label={c.name} style={{ background: c.color }} />
+    </Tooltip>
+  );
 }
 
 export function History({ history, onBlock, onClear }: Props) {
   return (
     <section className="history">
+      {/* Antes da lista: com muitas músicas, depois dela deixava de se ver. */}
+      <p className="hint keys">Atalhos: <kbd>Espaço</kbd> tocar/parar · <kbd>R</kbd> ouvir outra vez · <kbd>Enter</kbd> revelar · <kbd>N</kbd> próxima</p>
       <div className="history-head">
         <h2>Já tocadas</h2>
         <button type="button" className="btn-link" onClick={() => { if (confirm('Limpar o histórico e voltar a permitir todas as músicas?')) onClear(); }}>Limpar histórico</button>
@@ -38,11 +46,12 @@ export function History({ history, onBlock, onClear }: Props) {
               </span>
             </span>
             <span className="y">{h.year ?? '—'}</span>
-            <button type="button" className="block" title={`Bloquear ${h.artist}`} aria-label={`Bloquear ${h.artist}`} onClick={() => onBlock(h.artist)}><BlockIcon /></button>
+            <Tooltip content={`Bloquear ${h.artist}`} theme="danger">
+              <button type="button" className="block" aria-label={`Bloquear ${h.artist}`} onClick={() => onBlock(h.artist)}><BlockIcon /></button>
+            </Tooltip>
           </li>
         ))}
       </ol>
-      <p className="hint keys">Atalhos: <kbd>Espaço</kbd> tocar/parar · <kbd>R</kbd> ouvir outra vez · <kbd>Enter</kbd> revelar · <kbd>N</kbd> próxima</p>
     </section>
   );
 }

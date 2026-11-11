@@ -48,9 +48,9 @@ describe('BlockList', () => {
 
 describe('categories', () => {
   it('answers year categories', () => {
-    expect(new YearWindowCategory(3, '').answer(track())).toBe('Vale de 1984 a 1990');
-    expect(new DecadeCategory('').answer(track({ year: 2004 }))).toBe('Anos 2000');
-    expect(new DecadeCategory('').answer(track({ year: null }))).toBe('Ano desconhecido');
+    expect(new YearWindowCategory(3, 'purple').answer(track())).toBe('Vale de 1984 a 1990');
+    expect(new DecadeCategory('orange').answer(track({ year: 2004 }))).toBe('Anos 2000');
+    expect(new DecadeCategory('orange').answer(track({ year: null }))).toBe('Ano desconhecido');
     expect(looksLikeSeveral('Earth, Wind & Fire', 'September')).toBe(true);
   });
   it('draws only categories the track supports in artist mode', () => {
@@ -78,5 +78,22 @@ describe('settings', () => {
     const { loadSettings } = await import('./hooks/useSettings');
     expect(loadSettings({ bingo: 'expert' } as never).side).toBe('expert');
     expect(loadSettings({}).side).toBe('beginner');
+  });
+});
+
+describe('tooltip placement', () => {
+  it('flips below near the top and stays inside the screen', async () => {
+    const { placeTooltip } = await import('./tooltips/placement');
+    const viewport = { width: 375, height: 800 };
+    const tip = { width: 120, height: 30 };
+    expect(placeTooltip({ top: 400, bottom: 440, left: 100, width: 40 }, tip, viewport)).toEqual({ top: 362, left: 60, placement: 'top' });
+    expect(placeTooltip({ top: 10, bottom: 50, left: 100, width: 40 }, tip, viewport).placement).toBe('bottom');
+    expect(placeTooltip({ top: 400, bottom: 440, left: 0, width: 20 }, tip, viewport).left).toBe(8);
+    expect(placeTooltip({ top: 400, bottom: 440, left: 360, width: 15 }, tip, viewport).left).toBe(247);
+  });
+  it('has a theme for every category colour', async () => {
+    const { TOOLTIP_THEMES } = await import('./tooltips/themes');
+    const { CATEGORY_TONES } = await import('./theme/colors');
+    for (const t of CATEGORY_TONES) expect(TOOLTIP_THEMES[t].background).toBe(`var(--cat-${t})`);
   });
 });
