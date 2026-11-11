@@ -1,8 +1,8 @@
 export type LangKey = 'en' | 'pt' | 'br' | 'es' | 'fr' | 'it' | 'de';
 export type Mode = 'decades' | 'playlists' | 'artists';
 export type Fame = 'any' | 'known' | 'hits';
-export type BingoChoice = 'beginner' | 'expert' | 'off';
-export type SideKey = Exclude<BingoChoice, 'off'>;
+export type SideChoice = 'beginner' | 'expert' | 'off';
+export type SideKey = Exclude<SideChoice, 'off'>;
 export type StartPoint = 'begin' | 'random';
 export type Phase = 'idle' | 'loading' | 'buffering' | 'playing' | 'ready';
 
@@ -21,7 +21,7 @@ export interface Settings {
   /** Nomes como foram escritos; a comparação ignora maiúsculas e acentos. */
   blockedArtists: string[];
   fame: Fame;
-  bingo: BingoChoice;
+  side: SideChoice;
   ptSplit?: boolean;
 }
 

@@ -19,7 +19,7 @@ const DEFAULTS: Settings = {
   noRepeat: true,
   blockedArtists: [],
   fame: 'known',
-  bingo: 'beginner',
+  side: 'beginner',
 };
 
 /** Definições guardadas no browser, com valores inválidos ou antigos corrigidos. */
@@ -28,11 +28,13 @@ export function loadSettings(saved: Partial<Settings> = store.get<Partial<Settin
   if ((saved.languages?.pt ?? 0) > 0 && !saved.ptSplit && !('br' in (saved.languages ?? {}))) {
     saved = { ...saved, languages: { ...saved.languages, pt: saved.languages!.pt! / 2, br: saved.languages!.pt! / 2 } };
   }
-  const s: Settings = { ...DEFAULTS, ...saved, ptSplit: true };
+  // A escolha do lado das categorias chamava-se 'bingo' nas definições guardadas.
+  const { bingo, ...rest } = saved as Partial<Settings> & { bingo?: Settings['side'] };
+  const s: Settings = { ...DEFAULTS, ...(bingo ? { side: bingo } : {}), ...rest, ptSplit: true };
   if (!['decades', 'playlists', 'artists'].includes(s.mode)) s.mode = DEFAULTS.mode;
   s.artists = (Array.isArray(s.artists) ? s.artists : []).filter((a) => a && a.id && a.name);
   if (!(s.fame in FAME)) s.fame = DEFAULTS.fame;
-  if (!['beginner', 'expert', 'off'].includes(s.bingo)) s.bingo = DEFAULTS.bingo;
+  if (!['beginner', 'expert', 'off'].includes(s.side)) s.side = DEFAULTS.side;
   if (!Array.isArray(s.decades) || !s.decades.length) s.decades = DEFAULTS.decades;
   const langs = Object.fromEntries(Object.entries(s.languages || {}).filter(([k]) => languages.has(k)));
   s.languages = normalizeShares(Object.keys(langs).length ? langs : DEFAULTS.languages);

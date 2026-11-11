@@ -15,4 +15,4 @@ export function Segmented<T extends string>({ value, options, onChange }: Props<
   );
 }
 
-export const BINGO_OPTIONS = [['beginner', 'A · Iniciante'], ['expert', 'B · Experiente'], ['off', 'Sem categoria']] as const;
+export const SIDE_OPTIONS = [['beginner', 'A · Iniciante'], ['expert', 'B · Experiente'], ['off', 'Sem categoria']] as const;

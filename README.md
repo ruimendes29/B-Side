@@ -1,6 +1,6 @@
-# Hitster Fake
+# B-Side
 
-Um site para jogar Hitster com músicas aleatórias. Toca um excerto (10 s por defeito). Quando carregas em **Revelar**, a carta vira e mostra o artista, o ano e o título.
+Um jogo de música no browser: adivinha o ano de músicas aleatórias. Toca um excerto (10 s por defeito). Quando carregas em **Revelar**, a carta vira e mostra o artista, o ano e o título.
 
 As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem configuração.
 
@@ -14,9 +14,9 @@ As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem 
 
 Depois abre **http://127.0.0.1:8888/**. Na primeira vez, o script instala as dependências (`npm install`). O site é feito em React + TypeScript com Vite: `npm run build` gera o site estático em `dist/`, que pode ser alojado em qualquer servidor estático. O Vercel faz o build sozinho a cada push (ver `vercel.json`). `npm test` corre os testes.
 
-## Categorias do Hitster Bingo
+## Categorias
 
-Antes de cada música é sorteada uma categoria, como a bola de espelhos do Hitster Bingo. Escolhe o lado no início (ou nas definições):
+Antes de cada música é sorteada uma categoria. Escolhe o lado no início (ou nas definições):
 
 | Lado A · Iniciante | Lado B · Experiente |
 |---|---|
@@ -56,7 +56,7 @@ nl: {
 
 ## Modo por artista
 
-Em "Músicas", escolhe **Por artista**, pesquisa um ou mais artistas e adiciona-os (até 10). Só tocam músicas deles, e as categorias do Bingo passam a ser sobre o artista, com as mesmas cores:
+Em "Músicas", escolhe **Por artista**, pesquisa um ou mais artistas e adiciona-os (até 10). Só tocam músicas deles, e as categorias passam a ser sobre o artista, com as mesmas cores:
 
 | Cor | Lado A · Iniciante | Lado B · Experiente |
 |---|---|---|
@@ -100,7 +100,7 @@ A Deezer dá muitas vezes o ano de uma compilação ou reedição. Por isso, o s
 - `src/components/`: componentes React (carta, controlos, histórico, barra de progresso) e `settings/` com um painel por secção das definições
 - `src/hooks/useGame.ts`: lógica do jogo (escolher, tocar e revelar músicas, sorteio das categorias)
 - `src/hooks/useSettings.ts`: definições guardadas e a sua migração
-- `src/categories/`: categorias do Hitster Bingo como classes (`Category.ts`) e os lados A/B (`sides.ts`), normais e do modo por artista
+- `src/categories/`: categorias como classes (`Category.ts`) e os lados A/B (`sides.ts`), normais e do modo por artista
 - `src/languages/`: classe `Language`, as línguas (`definitions.ts`) e o `LanguageService` (detetor de língua, país do artista, sorteio)
 - `src/services/`: Deezer (JSONP), MusicBrainz, Wikidata, LRCLIB (refrão), modo por artista, artistas bloqueados, leitor de áudio e `TrackPicker` (escolha da próxima música)
 - `src/lib/`: funções auxiliares, percentagens das línguas e fila de pedidos com pausa

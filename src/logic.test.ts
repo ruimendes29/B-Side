@@ -72,3 +72,11 @@ describe('chorus', () => {
     expect(chorusFromLyrics('one two three four\nfive six seven eight')).toBeNull();
   });
 });
+
+describe('settings', () => {
+  it('keeps the side saved under the old "bingo" key', async () => {
+    const { loadSettings } = await import('./hooks/useSettings');
+    expect(loadSettings({ bingo: 'expert' } as never).side).toBe('expert');
+    expect(loadSettings({}).side).toBe('beginner');
+  });
+});

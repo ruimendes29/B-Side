@@ -2,7 +2,7 @@ import type { Settings } from '../types';
 import type { UpdateSettings } from '../hooks/useSettings';
 import type { SetStatus } from '../hooks/useStatus';
 import { Logo } from './icons';
-import { BingoPanel } from './settings/BingoPanel';
+import { CategoriesPanel } from './settings/CategoriesPanel';
 import { SongsPanel } from './settings/SongsPanel';
 import { FamePanel } from './settings/FamePanel';
 import { ArtistsPanel } from './settings/ArtistsPanel';
@@ -21,8 +21,8 @@ interface Props {
 export function Sidebar({ settings, update, setStatus, onBlock, onUnblock }: Props) {
   return (
     <aside className="sidebar" aria-label="Definições">
-      <div className="brand"><Logo /><span>Hitster<b>Fake</b></span></div>
-      <BingoPanel settings={settings} update={update} />
+      <div className="brand"><Logo /><span>B-<b>Side</b></span></div>
+      <CategoriesPanel settings={settings} update={update} />
       <SongsPanel settings={settings} update={update} setStatus={setStatus} />
       <FamePanel settings={settings} update={update} />
       {settings.mode === 'artists' && <ArtistsPanel settings={settings} update={update} setStatus={setStatus} />}

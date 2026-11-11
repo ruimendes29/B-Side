@@ -125,7 +125,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
   // ---------- Categorias ----------
 
   /**
-   * Animação da bola de espelhos: passa pelas categorias do lado, cada vez mais devagar,
+   * Animação do sorteio: passa pelas categorias do lado, cada vez mais devagar,
    * e para na sorteada. Devolve false se entretanto começou outra ronda.
    */
   async function spinCategory(cat: Category, keys: Category[], ask: string) {
@@ -163,7 +163,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
     setPhase('loading');
     setStatus('');
     const s = settingsRef.current;
-    const side = sideFor(s.mode, s.bingo);
+    const side = sideFor(s.mode, s.side);
     const artistMode = s.mode === 'artists';
     // Primeiro sorteia-se a categoria (enquanto a música carrega), depois toca a música.
     let spin: Promise<boolean> | null = null;

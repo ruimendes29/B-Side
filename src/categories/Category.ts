@@ -1,4 +1,4 @@
-// Categorias do Hitster Bingo: antes de cada música sorteia-se uma, como a bola de espelhos do jogo.
+// Categorias: antes de cada música sorteia-se uma.
 // Cada categoria sabe a pergunta, a cor, se a música tem dados para ela e a resposta certa.
 import type { ArtistFacts, Track } from '../types';
 import { shuffle } from '../lib/util';

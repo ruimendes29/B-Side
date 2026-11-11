@@ -131,7 +131,7 @@ kbd {
 }
 .lang-remove:hover { background: var(--elev-3); color: #fff; }
 
-/* Categorias do Bingo */
+/* Categorias */
 .cat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cat-list li {
   display: flex; gap: 10px; align-items: flex-start;
@@ -206,7 +206,7 @@ kbd {
   padding: 20px 24px 8px;
 }
 .menu-btn { display: none; }
-.round { font-size: 32px; font-weight: 900; letter-spacing: -.03em; }
+.round { font-size: 32px; font-weight: 900; letter-spacing: -.03em; white-space: nowrap; }
 .pill {
   margin-left: auto;
   background: rgba(0, 0, 0, .45);

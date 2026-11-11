@@ -1,4 +1,4 @@
-// Lado A (iniciante) e lado B (experiente), segundo as regras oficiais (hitstergame.com).
+// Lado A (iniciante) e lado B (experiente).
 // As cores são inventadas; as cinco posições têm a mesma cor nos dois modos.
 import type { Mode, SideKey, Track } from '../types';
 import {
@@ -24,7 +24,7 @@ const albumName = new AlbumNameCategory(PINK);
 const albumOrder = new AlbumOrderCategory(ORANGE);
 const near1 = new YearWindowCategory(1, PURPLE);
 
-export class BingoSide {
+export class CategorySide {
   constructor(
     readonly letter: string,
     readonly name: string,
@@ -45,24 +45,24 @@ export class BingoSide {
   }
 }
 
-export const SIDES: Record<SideKey, BingoSide> = {
-  beginner: new BingoSide('A', 'Iniciante', [group, new Before2000Category(YELLOW), new YearWindowCategory(4, BLUE), decade, new YearWindowCategory(2, PURPLE)]),
-  expert: new BingoSide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, near3]),
+export const SIDES: Record<SideKey, CategorySide> = {
+  beginner: new CategorySide('A', 'Iniciante', [group, new Before2000Category(YELLOW), new YearWindowCategory(4, BLUE), decade, new YearWindowCategory(2, PURPLE)]),
+  expert: new CategorySide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, near3]),
 };
 
 // Modo por artista: as perguntas passam a ser sobre o artista e os seus álbuns.
-export const ARTIST_SIDES: Record<SideKey, BingoSide> = {
-  beginner: new BingoSide('A', 'Iniciante', [title, new BeforeAfterCategory(YELLOW), near3, new AlbumChoiceCategory(ORANGE), new ChorusCategory(PURPLE)]),
+export const ARTIST_SIDES: Record<SideKey, CategorySide> = {
+  beginner: new CategorySide('A', 'Iniciante', [title, new BeforeAfterCategory(YELLOW), near3, new AlbumChoiceCategory(ORANGE), new ChorusCategory(PURPLE)]),
   // 3.ª cor do lado B: "Qual dos artistas?" com 2 ou mais artistas, "Nº da faixa" com um só.
-  expert: new BingoSide('B', 'Experiente', (ctx) => [
+  expert: new CategorySide('B', 'Experiente', (ctx) => [
     albumName, exact, ctx.artistNames.length >= 2 ? artistPick : trackNo, albumOrder, near1,
   ]),
 };
 
-/** Lado do Bingo para este modo, ou null com "Sem categoria". */
-export const sideFor = (mode: Mode, bingo: string): BingoSide | null => {
+/** Lado das categorias para este modo, ou null com "Sem categoria". */
+export const sideFor = (mode: Mode, side: string): CategorySide | null => {
   const sides = mode === 'artists' ? ARTIST_SIDES : SIDES;
-  return bingo in sides ? sides[bingo as SideKey] : null;
+  return side in sides ? sides[side as SideKey] : null;
 };
 
 /** Todas as categorias por chave (para o histórico). */

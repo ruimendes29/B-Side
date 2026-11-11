@@ -14,7 +14,7 @@ import { Card } from './components/Card';
 import { Controls } from './components/Controls';
 import { Progress } from './components/Progress';
 import { History } from './components/History';
-import { BINGO_OPTIONS, Segmented } from './components/Segmented';
+import { SIDE_OPTIONS, Segmented } from './components/Segmented';
 import { decadeLabel } from './components/settings/SongsPanel';
 import { BlockIcon } from './components/icons';
 
@@ -27,8 +27,8 @@ function sourceLabel(s: Settings) {
     const ds = [...s.decades].sort();
     pill = `${langs} · ${ds.length === DECADES.length ? 'todas as décadas' : ds.map(decadeLabel).join(' ')}`;
   }
-  const side = s.bingo === 'off' ? null : SIDES[s.bingo];
-  return side ? `Bingo ${side.letter} · ${pill}` : pill;
+  const side = s.side === 'off' ? null : SIDES[s.side];
+  return side ? `${side.letter} · ${side.name} · ${pill}` : pill;
 }
 
 export default function App() {
@@ -87,8 +87,8 @@ export default function App() {
           <section className={`stage${phase === 'playing' ? ' is-playing' : ''}`}>
             {round === 0 && phase === 'idle' && (
               <div className="side-pick">
-                <span>Lado do Bingo</span>
-                <Segmented value={settings.bingo} options={BINGO_OPTIONS} onChange={(bingo) => update({ bingo })} />
+                <span>Categorias</span>
+                <Segmented value={settings.side} options={SIDE_OPTIONS} onChange={(side) => update({ side })} />
               </div>
             )}
             <Card {...game} onReveal={actions.reveal} />
