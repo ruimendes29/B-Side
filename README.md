@@ -12,7 +12,7 @@ As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem 
 ./start.sh
 ```
 
-Depois abre **http://127.0.0.1:8888/**. O site é só HTML, CSS e JavaScript, por isso também pode ser alojado em qualquer servidor estático, como o GitHub Pages.
+Depois abre **http://127.0.0.1:8888/**. Na primeira vez, o script instala as dependências (`npm install`). O site é feito em React + TypeScript com Vite: `npm run build` gera o site estático em `dist/`, que pode ser alojado em qualquer servidor estático. O Vercel faz o build sozinho a cada push (ver `vercel.json`). `npm test` corre os testes.
 
 ## Categorias do Hitster Bingo
 
@@ -41,9 +41,9 @@ Todas as categorias têm a mesma probabilidade. Ao revelar, a carta mostra a res
 
 ### Adicionar outra língua
 
-Junta uma entrada a `LANGUAGES` em [js/languages.js](js/languages.js):
+Junta uma entrada a `LANGUAGE_DEFINITIONS` em [src/languages/definitions.ts](src/languages/definitions.ts):
 
-```js
+```ts
 nl: {
   name: 'Neerlandês',
   code: 'NL',
@@ -96,15 +96,13 @@ A Deezer dá muitas vezes o ano de uma compilação ou reedição. Por isso, o s
 
 ## Ficheiros
 
-- `index.html` e `css/style.css`: interface
-- `js/app.js`: lógica do jogo e das definições
-- `js/bingo.js`: categorias do Hitster Bingo (normais e do modo por artista) e respostas
-- `js/artists.js`: modo por artista (pesquisa, discografia, escolha das músicas)
-- `js/chorus.js`: verso do refrão para "Completar o refrão"
-- `js/languages.js`: línguas, pesquisas de playlists e detetor de língua
-- `js/deezer.js`: pesquisa e excertos da Deezer (JSONP)
-- `js/musicbrainz.js`: ano original e país do artista
-- `js/wikidata.js`: país do artista quando o MusicBrainz não o sabe
-- `js/util.js`: funções auxiliares
+- `index.html`, `src/main.tsx`, `src/App.tsx`, `src/style.css`: página e interface
+- `src/components/`: componentes React (carta, controlos, histórico, barra de progresso) e `settings/` com um painel por secção das definições
+- `src/hooks/useGame.ts`: lógica do jogo (escolher, tocar e revelar músicas, sorteio das categorias)
+- `src/hooks/useSettings.ts`: definições guardadas e a sua migração
+- `src/categories/`: categorias do Hitster Bingo como classes (`Category.ts`) e os lados A/B (`sides.ts`), normais e do modo por artista
+- `src/languages/`: classe `Language`, as línguas (`definitions.ts`) e o `LanguageService` (detetor de língua, país do artista, sorteio)
+- `src/services/`: Deezer (JSONP), MusicBrainz, Wikidata, LRCLIB (refrão), modo por artista, artistas bloqueados, leitor de áudio e `TrackPicker` (escolha da próxima música)
+- `src/lib/`: funções auxiliares, percentagens das línguas e fila de pedidos com pausa
 
 As definições e o histórico ficam guardados no `localStorage` do browser.

@@ -1,0 +1,73 @@
+// Lado A (iniciante) e lado B (experiente), segundo as regras oficiais (hitstergame.com).
+// As cores são inventadas; as cinco posições têm a mesma cor nos dois modos.
+import type { Mode, SideKey, Track } from '../types';
+import {
+  AlbumChoiceCategory, AlbumNameCategory, AlbumOrderCategory, ArtistPickCategory, BeforeAfterCategory,
+  Before2000Category, Category, type CategoryContext, ChorusCategory, DecadeCategory, ExactYearCategory,
+  GroupOrSoloCategory, SingerCategory, TitleCategory, TrackNumberCategory, YearWindowCategory,
+} from './Category';
+
+const PINK = '#ff4fa3';
+const YELLOW = '#ffd23f';
+const BLUE = '#3ec6ff';
+const ORANGE = '#ff8a3d';
+const PURPLE = '#a77bff';
+
+export const group = new GroupOrSoloCategory(PINK);
+const title = new TitleCategory(PINK);
+const decade = new DecadeCategory(ORANGE);
+const near3 = new YearWindowCategory(3, PURPLE);
+const exact = new ExactYearCategory(YELLOW);
+const artistPick = new ArtistPickCategory(BLUE);
+const trackNo = new TrackNumberCategory(BLUE);
+const albumName = new AlbumNameCategory(PINK);
+const albumOrder = new AlbumOrderCategory(ORANGE);
+const near1 = new YearWindowCategory(1, PURPLE);
+
+export class BingoSide {
+  constructor(
+    readonly letter: string,
+    readonly name: string,
+    private readonly list: Category[] | ((ctx: CategoryContext) => Category[]),
+  ) {}
+
+  categories(ctx: CategoryContext): Category[] {
+    return typeof this.list === 'function' ? this.list(ctx) : this.list;
+  }
+
+  /**
+   * Sorteia uma categoria (todas com a mesma probabilidade: as regras não dizem a frequência).
+   * Com a música, só entre as que ela permite. Devolve null se nenhuma servir.
+   */
+  draw(ctx: CategoryContext, track: Track | null = null, rng: () => number = Math.random): Category | null {
+    const options = this.categories(ctx).filter((c) => !track || c.isAvailable(track, ctx));
+    return options.length ? options[Math.floor(rng() * options.length)] : null;
+  }
+}
+
+export const SIDES: Record<SideKey, BingoSide> = {
+  beginner: new BingoSide('A', 'Iniciante', [group, new Before2000Category(YELLOW), new YearWindowCategory(4, BLUE), decade, new YearWindowCategory(2, PURPLE)]),
+  expert: new BingoSide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, near3]),
+};
+
+// Modo por artista: as perguntas passam a ser sobre o artista e os seus álbuns.
+export const ARTIST_SIDES: Record<SideKey, BingoSide> = {
+  beginner: new BingoSide('A', 'Iniciante', [title, new BeforeAfterCategory(YELLOW), near3, new AlbumChoiceCategory(ORANGE), new ChorusCategory(PURPLE)]),
+  // 3.ª cor do lado B: "Qual dos artistas?" com 2 ou mais artistas, "Nº da faixa" com um só.
+  expert: new BingoSide('B', 'Experiente', (ctx) => [
+    albumName, exact, ctx.artistNames.length >= 2 ? artistPick : trackNo, albumOrder, near1,
+  ]),
+};
+
+/** Lado do Bingo para este modo, ou null com "Sem categoria". */
+export const sideFor = (mode: Mode, bingo: string): BingoSide | null => {
+  const sides = mode === 'artists' ? ARTIST_SIDES : SIDES;
+  return bingo in sides ? sides[bingo as SideKey] : null;
+};
+
+/** Todas as categorias por chave (para o histórico). */
+export function categoryByKey(key: string): Category | undefined {
+  const all = [...Object.values(SIDES), ...Object.values(ARTIST_SIDES)]
+    .flatMap((s) => [...s.categories({ artistNames: [] }), ...s.categories({ artistNames: ['', ''] })]);
+  return all.find((c) => c.key === key);
+}
