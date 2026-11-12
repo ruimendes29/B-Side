@@ -1,8 +1,9 @@
-// Categoria "Completar o refrão" (modo por artista): um verso do refrão com as últimas palavras
-// escondidas. A letra vem do LRCLIB no momento em que a música é escolhida e nunca é guardada.
+// Categoria "Completar o refrão" (todos os modos): um verso do refrão com as últimas palavras
+// escondidas e três fins à escolha (o certo e dois de outros versos da mesma letra).
+// A letra vem do LRCLIB no momento em que a música é escolhida e nunca é guardada.
 // O refrão é o verso que mais se repete; se nenhum se repetir, a música não tem esta categoria.
 import type { Chorus } from '../types';
-import { normalize } from '../lib/util';
+import { normalize, shuffle } from '../lib/util';
 
 const API = 'https://lrclib.net/api';
 const MIN_WORDS = 4;
@@ -11,9 +12,13 @@ const wordsOf = (text: string) => text.split(/\s+/).filter(Boolean);
 
 interface LrcResult { artistName: string; instrumental?: boolean; plainLyrics?: string | null; syncedLyrics?: string | null }
 
-/** O verso que mais se repete, com as 2-3 últimas palavras escondidas; null sem refrão claro. */
-export function chorusFromLyrics(text: string): Chorus | null {
-  const lines = text.split('\n').map((l) => l.trim()).filter((l) => wordsOf(l).length >= MIN_WORDS);
+/**
+ * O verso que mais se repete, com as 2-3 últimas palavras escondidas e dois fins errados
+ * tirados de outros versos; null sem refrão claro ou sem versos diferentes que cheguem.
+ */
+export function chorusFromLyrics(text: string, rng: () => number = Math.random): Chorus | null {
+  // Sem pontuação no fim, para a vírgula não denunciar a opção certa.
+  const lines = text.split('\n').map((l) => l.trim().replace(/[\s,.;:!?…]+$/, '')).filter((l) => wordsOf(l).length >= MIN_WORDS);
   if (!lines.length) return null;
   const count = new Map<string, number>();
   for (const l of lines) count.set(normalize(l), (count.get(normalize(l)) || 0) + 1);
@@ -21,7 +26,18 @@ export function chorusFromLyrics(text: string): Chorus | null {
   if (count.get(normalize(best))! < 2) return null; // nenhum verso se repete: sem refrão claro
   const words = wordsOf(best);
   const hide = words.length >= 7 ? 3 : 2;
-  return { shown: words.slice(0, -hide).join(' '), hidden: words.slice(-hide) };
+  const hidden = words.slice(-hide);
+  const seen = new Set([normalize(hidden.join(' '))]);
+  const wrong: string[] = [];
+  for (const l of shuffle(lines, rng)) {
+    const end = wordsOf(l).slice(-hide).join(' ');
+    if (/[()[\]]/.test(end) || seen.has(normalize(end))) continue; // "(oh oh)" são coros: denunciam-se
+    seen.add(normalize(end));
+    wrong.push(end);
+    if (wrong.length === 2) break;
+  }
+  if (wrong.length < 2) return null;
+  return { shown: words.slice(0, -hide).join(' '), hidden, wrong };
 }
 
 export class LyricsService {

@@ -1,12 +1,13 @@
 // Escolhe a próxima música conforme as definições (por língua e década, uma playlist ou por artista).
 import type { Settings, Track } from '../types';
-import { minYear } from '../lib/util';
+import { cleanTitle, minYear } from '../lib/util';
 import { languages } from '../languages/LanguageService';
 import { deezer, DeezerService } from './DeezerService';
 import { musicBrainz } from './MusicBrainzService';
 import { wikidata } from './WikidataService';
 import { artistMode } from './ArtistModeService';
 import { BlockList } from './BlockList';
+import { lyrics } from './LyricsService';
 
 // Fama: só aceita músicas entre as X% mais ouvidas na Deezer do mesmo grupo.
 export const FAME = { any: 1, known: 0.5, hits: 0.2 } as const;
@@ -21,6 +22,11 @@ export class TrackPicker {
   private resolveYear(track: Track) {
     return Promise.all([deezer.originalYear(track), musicBrainz.firstReleaseYear(track.artists[0], track.title)])
       .then((years) => minYear(years));
+  }
+
+  /** Refrão para a categoria da letra (o modo por artista já o procura sozinho). */
+  private chorus(track: Track) {
+    return lyrics.chorusLine(track.artists[0], cleanTitle(track.title) || track.title);
   }
 
   /**
@@ -71,7 +77,7 @@ export class TrackPicker {
       const id = DeezerService.parsePlaylistId(s.dzPlaylist);
       if (!id) throw new Error('Cola o link de uma playlist da Deezer nas definições.');
       const track = await deezer.randomFromPlaylist(id, exclude, blocked, top);
-      return { ...track, yearPromise: this.resolveYear(track) };
+      return { ...track, yearPromise: this.resolveYear(track), chorus: await this.chorus(track) };
     }
 
     const decades = [...s.decades];
@@ -85,9 +91,9 @@ export class TrackPicker {
       const quick = await deezer.albumYear(track);
       if (quick && quick < earliest) continue;
       if (!(await this.fitsLanguage(track))) continue;
-      const year = await this.resolveYear(track);
+      const [year, chorus] = await Promise.all([this.resolveYear(track), this.chorus(track)]);
       if (year && !inDecades(year, decades)) continue;
-      return { ...track, year, yearPromise: Promise.resolve(year) };
+      return { ...track, year, yearPromise: Promise.resolve(year), chorus };
     }
     throw new Error('Não encontrei músicas destas décadas e línguas. Experimenta juntar mais décadas.');
   }

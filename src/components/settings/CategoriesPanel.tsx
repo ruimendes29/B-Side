@@ -1,11 +1,11 @@
 import type { Settings } from '../../types';
 import type { UpdateSettings } from '../../hooks/useSettings';
-import { sideFor } from '../../categories/sides';
+import { contextFor, sideFor } from '../../categories/sides';
 import { SIDE_OPTIONS, Segmented } from '../Segmented';
 
 export function CategoriesPanel({ settings, update }: { settings: Settings; update: UpdateSettings }) {
   const side = sideFor(settings.mode, settings.side);
-  const categories = side?.categories({ artistNames: settings.artists.map((a) => a.name) }) ?? [];
+  const categories = side?.categories(contextFor(settings)) ?? [];
   return (
     <section className="panel">
       <h3>Categorias</h3>

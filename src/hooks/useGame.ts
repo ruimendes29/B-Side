@@ -7,14 +7,14 @@ import { randInt, sleep, store } from '../lib/util';
 import { player } from '../services/AudioPlayer';
 import { deezer } from '../services/DeezerService';
 import { trackPicker, StaleError } from '../services/TrackPicker';
-import type { Category, CategoryContext } from '../categories/Category';
-import { sideFor } from '../categories/sides';
+import type { Category, CategoryContext, Question } from '../categories/Category';
+import { contextFor, sideFor } from '../categories/sides';
 import type { SetStatus } from './useStatus';
 
-export interface CategoryView { key: string; name: string; color: string; ask: string }
+export interface CategoryView { key: string; name: string; color: string; ask: string; options?: string[] }
 export interface Clip { startedAt: number; durationMs: number }
 
-const view = (c: Category, ask = c.ask): CategoryView => ({ key: c.key, name: c.name, color: c.color, ask });
+const view = (c: Category, q: Question = { ask: c.ask }): CategoryView => ({ key: c.key, name: c.name, color: c.color, ...q });
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Só estas definições mudam a escolha das músicas; mudar as outras não descarta a próxima. */
@@ -52,7 +52,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
   }).current;
 
   const setPhase = (p: Phase) => { r.phase = p; setPhaseState(p); };
-  const ctx = (): CategoryContext => ({ artistNames: settingsRef.current.artists.map((a) => a.name) });
+  const ctx = (): CategoryContext => contextFor(settingsRef.current);
 
   const pick = () => {
     const gen = r.gen;
@@ -96,7 +96,9 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
     stopClip();
     const id = ++r.playId;
     const s = settingsRef.current;
-    r.clipStart ??= s.start === 'begin' ? 0 : randInt(0, Math.max(0, 30 - s.duration)) * 1000;
+    // Na letra começa sempre do início do excerto, para não tocar logo o refrão.
+    const fromStart = s.start === 'begin' || r.category?.key === 'chorus';
+    r.clipStart ??= fromStart ? 0 : randInt(0, Math.max(0, 30 - s.duration)) * 1000;
     const start = r.clipStart;
     const dur = Math.min(s.duration * 1000, 30000 - start);
 
@@ -128,7 +130,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
    * Animação do sorteio: passa pelas categorias do lado, cada vez mais devagar,
    * e para na sorteada. Devolve false se entretanto começou outra ronda.
    */
-  async function spinCategory(cat: Category, keys: Category[], ask: string) {
+  async function spinCategory(cat: Category, keys: Category[], question: Question) {
     const id = ++r.spinId;
     r.category = cat;
     setSpinning(true);
@@ -143,7 +145,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
       await sleep(60 + k * k * 1.6);
     }
     if (id !== r.spinId) return false;
-    setFront({ cat: view(cat, ask), rolling: false });
+    setFront({ cat: view(cat, question), rolling: false });
     setSpinning(false);
     await sleep(500);
     return id === r.spinId;
@@ -164,12 +166,8 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
     setStatus('');
     const s = settingsRef.current;
     const side = sideFor(s.mode, s.side);
-    const artistMode = s.mode === 'artists';
-    // Primeiro sorteia-se a categoria (enquanto a música carrega), depois toca a música.
     let spin: Promise<boolean> | null = null;
-    const cat = !artistMode && side?.draw(ctx());
-    if (cat) spin = spinCategory(cat, side!.categories(ctx()), cat.prompt(null, ctx()));
-    else clearCategory();
+    clearCategory();
 
     const prefetched = r.next?.gen === r.gen ? r.next.promise : null;
     r.next = null;
@@ -181,10 +179,10 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
         t = await pick().catch((e) => { if (e instanceof StaleError) return null; throw e; });
       }
       if (!t) throw new Error('As definições mudaram muitas vezes seguidas. Tenta outra vez.');
-      // No modo artistas, a categoria só se sorteia depois da música, para escolher uma que ela permita.
-      if (artistMode && side) {
+      // A categoria sorteia-se depois da música, só entre as que ela permite (ex.: a letra precisa de refrão).
+      if (side) {
         const c = side.draw(ctx(), t);
-        if (c) spin = spinCategory(c, side.categories(ctx()), c.prompt(t, ctx()));
+        if (c) spin = spinCategory(c, side.categories(ctx()), c.question(t, ctx()));
       }
       if (spin && !(await spin)) return; // outra ronda começou entretanto
       r.track = t;

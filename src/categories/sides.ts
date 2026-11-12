@@ -1,9 +1,11 @@
 // Lado A (iniciante) e lado B (experiente).
 // As cores são inventadas (variáveis --cat-* em style.css); as cinco posições têm a mesma cor nos dois modos.
-import type { Mode, SideKey, Track } from '../types';
+// Cada lado tem só uma pergunta de "±N anos" (antes havia várias, que eram quase a mesma pergunta)
+// e a letra (roxo) em todos, com peso 2 no sorteio.
+import type { Mode, Settings, SideKey, Track } from '../types';
 import {
   AlbumChoiceCategory, AlbumNameCategory, AlbumOrderCategory, ArtistPickCategory, BeforeAfterCategory,
-  Before2000Category, Category, type CategoryContext, ChorusCategory, DecadeCategory, ExactYearCategory,
+  BeforeYearCategory, Category, type CategoryContext, ChorusCategory, DecadeCategory, ExactYearCategory,
   GroupOrSoloCategory, SingerCategory, TitleCategory, TrackNumberCategory, YearWindowCategory,
 } from './Category';
 
@@ -16,13 +18,12 @@ const PURPLE = 'purple';
 export const group = new GroupOrSoloCategory(PINK);
 const title = new TitleCategory(PINK);
 const decade = new DecadeCategory(ORANGE);
-const near3 = new YearWindowCategory(3, PURPLE);
+const chorus = new ChorusCategory(PURPLE);
 const exact = new ExactYearCategory(YELLOW);
 const artistPick = new ArtistPickCategory(BLUE);
 const trackNo = new TrackNumberCategory(BLUE);
 const albumName = new AlbumNameCategory(PINK);
 const albumOrder = new AlbumOrderCategory(ORANGE);
-const near1 = new YearWindowCategory(1, PURPLE);
 
 export class CategorySide {
   constructor(
@@ -36,26 +37,27 @@ export class CategorySide {
   }
 
   /**
-   * Sorteia uma categoria (todas com a mesma probabilidade: as regras não dizem a frequência).
+   * Sorteia uma categoria pelo peso de cada uma (a letra sai mais vezes).
    * Com a música, só entre as que ela permite. Devolve null se nenhuma servir.
    */
   draw(ctx: CategoryContext, track: Track | null = null, rng: () => number = Math.random): Category | null {
     const options = this.categories(ctx).filter((c) => !track || c.isAvailable(track, ctx));
-    return options.length ? options[Math.floor(rng() * options.length)] : null;
+    let x = rng() * options.reduce((sum, c) => sum + c.weight, 0);
+    return options.find((c) => (x -= c.weight) < 0) ?? options.at(-1) ?? null;
   }
 }
 
 export const SIDES: Record<SideKey, CategorySide> = {
-  beginner: new CategorySide('A', 'Iniciante', [group, new Before2000Category(YELLOW), new YearWindowCategory(4, BLUE), decade, new YearWindowCategory(2, PURPLE)]),
-  expert: new CategorySide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, near3]),
+  beginner: new CategorySide('A', 'Iniciante', [group, new BeforeYearCategory(YELLOW), new YearWindowCategory(4, BLUE), decade, chorus]),
+  expert: new CategorySide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, chorus]),
 };
 
 // Modo por artista: as perguntas passam a ser sobre o artista e os seus álbuns.
 export const ARTIST_SIDES: Record<SideKey, CategorySide> = {
-  beginner: new CategorySide('A', 'Iniciante', [title, new BeforeAfterCategory(YELLOW), near3, new AlbumChoiceCategory(ORANGE), new ChorusCategory(PURPLE)]),
+  beginner: new CategorySide('A', 'Iniciante', [title, new BeforeAfterCategory(YELLOW), new YearWindowCategory(3, BLUE), new AlbumChoiceCategory(ORANGE), chorus]),
   // 3.ª cor do lado B: "Qual dos artistas?" com 2 ou mais artistas, "Nº da faixa" com um só.
   expert: new CategorySide('B', 'Experiente', (ctx) => [
-    albumName, exact, ctx.artistNames.length >= 2 ? artistPick : trackNo, albumOrder, near1,
+    albumName, exact, ctx.artistNames.length >= 2 ? artistPick : trackNo, albumOrder, chorus,
   ]),
 };
 
@@ -65,9 +67,15 @@ export const sideFor = (mode: Mode, side: string): CategorySide | null => {
   return side in sides ? sides[side as SideKey] : null;
 };
 
+/** Contexto das categorias a partir das definições. */
+export const contextFor = (s: Settings): CategoryContext => ({
+  artistNames: s.artists.map((a) => a.name),
+  decades: s.mode === 'decades' ? s.decades : [],
+});
+
 /** Todas as categorias por chave (para o histórico). */
 export function categoryByKey(key: string): Category | undefined {
   const all = [...Object.values(SIDES), ...Object.values(ARTIST_SIDES)]
-    .flatMap((s) => [...s.categories({ artistNames: [] }), ...s.categories({ artistNames: ['', ''] })]);
+    .flatMap((s) => [...s.categories({ artistNames: [], decades: [] }), ...s.categories({ artistNames: ['', ''], decades: [] })]);
   return all.find((c) => c.key === key);
 }

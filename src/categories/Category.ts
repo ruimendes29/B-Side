@@ -8,7 +8,12 @@ import { type CategoryTone, toneVar } from '../theme/colors';
 export interface CategoryContext {
   /** Nomes dos artistas escolhidos (modo por artista). */
   artistNames: string[];
+  /** Décadas escolhidas (modo por década); vazio nos outros modos. */
+  decades: number[];
 }
+
+/** Pergunta na frente da carta; `options` aparecem por baixo da carta como A, B, C… */
+export interface Question { ask: string; options?: string[] }
 
 export abstract class Category {
   constructor(
@@ -18,6 +23,9 @@ export abstract class Category {
     readonly tone: CategoryTone,
   ) {}
 
+  /** Peso no sorteio: 2 sai duas vezes mais do que as outras. */
+  readonly weight: number = 1;
+
   /** Cor para CSS (variável --cat-*). */
   get color() { return toneVar(this.tone); }
 
@@ -26,9 +34,9 @@ export abstract class Category {
     return true;
   }
 
-  /** Texto da pergunta na frente da carta (pode depender da música, ex.: opções de álbuns). */
-  prompt(_track: Track | null, _ctx: CategoryContext, _rng: () => number = Math.random): string {
-    return this.ask;
+  /** Pergunta para esta música (pode ter opções, ex.: álbuns). */
+  question(_track: Track, _ctx: CategoryContext, _rng: () => number = Math.random): Question {
+    return { ask: this.ask };
   }
 
   /** Resposta certa, para a carta revelada. */
@@ -38,10 +46,10 @@ export abstract class Category {
 // ---------- Categorias com o ano ----------
 
 abstract class YearCategory extends Category {
-  answer(t: Track) {
-    return t.year ? this.answerFor(t.year, t) : 'Ano desconhecido';
+  answer(t: Track, ctx?: CategoryContext) {
+    return t.year ? this.answerFor(t.year, ctx) : 'Ano desconhecido';
   }
-  protected abstract answerFor(year: number, t: Track): string;
+  protected abstract answerFor(year: number, ctx?: CategoryContext): string;
 }
 
 export class YearWindowCategory extends YearCategory {
@@ -56,9 +64,21 @@ export class YearWindowCategory extends YearCategory {
   protected answerFor(y: number) { return `Vale de ${y - this.range} a ${y + this.range}`; }
 }
 
-export class Before2000Category extends YearCategory {
-  constructor(color: CategoryTone) { super('before2000', 'Antes de 2000?', 'Saiu antes de 2000? Sim ou não.', color); }
-  protected answerFor(y: number) { return y < 2000 ? 'Sim, antes de 2000' : 'Não, 2000 ou depois'; }
+/** Ano que divide as décadas escolhidas ao meio (ex.: 80+90 -> 1990; só os 80 -> 1985). Sem décadas: 2000. */
+export function pivotYear(decades: number[]) {
+  const ds = [...decades].sort((a, b) => a - b);
+  if (!ds.length) return 2000;
+  return ds.length === 1 ? ds[0] + 5 : ds[Math.ceil(ds.length / 2)];
+}
+
+// A chave continua 'before2000' por causa do histórico guardado.
+export class BeforeYearCategory extends YearCategory {
+  constructor(color: CategoryTone) { super('before2000', 'Antes de…?', 'Saiu antes do ano da carta? Sim ou não.', color); }
+  question(_t: Track, ctx: CategoryContext) { return { ask: `Saiu antes de ${pivotYear(ctx.decades)}? Sim ou não.` }; }
+  protected answerFor(y: number, ctx?: CategoryContext) {
+    const p = pivotYear(ctx?.decades ?? []);
+    return y < p ? `Sim, antes de ${p}` : `Não, ${p} ou depois`;
+  }
 }
 
 export class DecadeCategory extends YearCategory {
@@ -72,6 +92,20 @@ export class DecadeCategory extends YearCategory {
 export class ExactYearCategory extends YearCategory {
   constructor(color: CategoryTone) { super('exact', 'Ano exato', 'Escreve o ano. Só vale o ano certo.', color); }
   protected answerFor(y: number) { return String(y); }
+}
+
+// ---------- Letra ----------
+
+export class ChorusCategory extends Category {
+  override readonly weight = 2; // o Rui quer a letra mais vezes
+  constructor(color: CategoryTone) { super('chorus', 'Completar o refrão', 'Como acaba este verso do refrão?', color); }
+  isAvailable(t: Track) { return Boolean(t.chorus); }
+  question(t: Track, _ctx: CategoryContext, rng: () => number = Math.random) {
+    const c = t.chorus;
+    if (!c) return { ask: this.ask };
+    return { ask: `«${c.shown} …»`, options: shuffle([c.hidden.join(' '), ...c.wrong], rng) };
+  }
+  answer(t: Track) { return t.chorus?.hidden.join(' ') ?? '—'; }
 }
 
 // ---------- Título e artista ----------
@@ -132,7 +166,7 @@ abstract class ArtistCategory extends Category {
 export class BeforeAfterCategory extends ArtistCategory {
   constructor(color: CategoryTone) { super('before_after', 'Antes ou depois de…', 'Foi lançada antes ou depois de uma data?', color); }
   isAvailable(t: Track) { return Boolean(t.facts && t.facts.studioTitles.length >= 2); }
-  prompt(t: Track | null) { return t?.facts ? `Foi lançada antes ou depois de ${t.facts.pivot}?` : this.ask; }
+  question(t: Track) { return { ask: t.facts ? `Foi lançada antes ou depois de ${t.facts.pivot}?` : this.ask }; }
   answer(t: Track) {
     const { pivot } = this.facts(t);
     if (t.year === pivot) return `No mesmo ano (${t.year})`;
@@ -148,11 +182,11 @@ export class AlbumNameCategory extends ArtistCategory {
 export class AlbumChoiceCategory extends ArtistCategory {
   constructor(color: CategoryTone) { super('album_choice', 'Qual é o álbum?', 'Escolhe entre três álbuns de estúdio.', color); }
   isAvailable(t: Track) { return Boolean(t.facts && t.facts.studioTitles.length >= 3); }
-  prompt(t: Track | null, _ctx: CategoryContext, rng: () => number = Math.random) {
-    if (!t?.facts) return this.ask;
+  question(t: Track, _ctx: CategoryContext, rng: () => number = Math.random) {
+    if (!t.facts) return { ask: this.ask };
     const { albumName, studioTitles } = t.facts;
     const wrong = shuffle(studioTitles.filter((x) => x !== albumName), rng).slice(0, 2);
-    return shuffle([albumName, ...wrong], rng).map((o, i) => `${'ABC'[i]} · ${o}`).join('   ');
+    return { ask: 'Em que álbum de estúdio está?', options: shuffle([albumName, ...wrong], rng) };
   }
   answer(t: Track) { return this.facts(t).albumName; }
 }
@@ -166,25 +200,13 @@ export class AlbumOrderCategory extends ArtistCategory {
 export class ArtistPickCategory extends ArtistCategory {
   constructor(color: CategoryTone) { super('artist_pick', 'Qual dos artistas?', 'Quem canta esta música?', color); }
   isAvailable(t: Track, ctx: CategoryContext) { return Boolean(t.facts) && ctx.artistNames.length >= 2; }
-  prompt(_t: Track | null, ctx: CategoryContext) {
-    return ctx.artistNames.length ? ctx.artistNames.map((o, i) => `${i + 1} · ${o}`).join('   ') : this.ask;
-  }
+  question(_t: Track, ctx: CategoryContext) { return { ask: this.ask, options: ctx.artistNames }; }
   answer(t: Track) { return this.facts(t).source; }
 }
 
 export class TrackNumberCategory extends ArtistCategory {
   constructor(color: CategoryTone) { super('track_no', 'Nº da faixa no álbum', 'Em que posição está no álbum? Vale ±1.', color); }
   isAvailable(t: Track) { return t.facts?.trackNo != null; }
-  prompt(t: Track | null) { return t ? 'Qual é o número da faixa no álbum? (vale ±1)' : this.ask; }
+  question() { return { ask: 'Qual é o número da faixa no álbum? (vale ±1)' }; }
   answer(t: Track) { return `Faixa ${this.facts(t).trackNo}`; }
-}
-
-export class ChorusCategory extends ArtistCategory {
-  constructor(color: CategoryTone) { super('chorus', 'Completar o refrão', 'Escreve as palavras que faltam no verso do refrão.', color); }
-  isAvailable(t: Track) { return Boolean(t.facts?.chorus); }
-  prompt(t: Track | null) {
-    const c = t?.facts?.chorus;
-    return c ? `${c.shown} ${c.hidden.map(() => '____').join(' ')}` : this.ask;
-  }
-  answer(t: Track) { return this.facts(t).chorus!.hidden.join(' '); }
 }

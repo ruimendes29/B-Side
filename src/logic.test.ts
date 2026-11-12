@@ -5,7 +5,7 @@ import { addShare, languageShares, removeShare, setShare } from './lib/shares';
 import { BlockList } from './services/BlockList';
 import { chorusFromLyrics } from './services/LyricsService';
 import { ARTIST_SIDES, SIDES } from './categories/sides';
-import { DecadeCategory, YearWindowCategory, looksLikeSeveral } from './categories/Category';
+import { BeforeYearCategory, DecadeCategory, YearWindowCategory, looksLikeSeveral, pivotYear } from './categories/Category';
 
 const track = (over: Partial<Track> = {}): Track => ({
   id: 'dz1', deezerId: 1, title: 'Song', artists: ['Artist'], year: 1987, yearPromise: Promise.resolve(1987), preview: '', ...over,
@@ -54,22 +54,45 @@ describe('categories', () => {
     expect(looksLikeSeveral('Earth, Wind & Fire', 'September')).toBe(true);
   });
   it('draws only categories the track supports in artist mode', () => {
-    const facts = { source: 'A', albumName: 'X', albumOrder: 1, studioTitles: ['X'], pivot: 1987, trackNo: null, chorus: null };
-    const t = track({ facts });
-    const ctx = { artistNames: ['A'] };
+    const facts = { source: 'A', albumName: 'X', albumOrder: 1, studioTitles: ['X'], pivot: 1987, trackNo: null };
+    const t = track({ facts, chorus: null });
+    const ctx = { artistNames: ['A'], decades: [] };
     const keys = new Set(Array.from({ length: 50 }, () => ARTIST_SIDES.beginner.draw(ctx, t)!.key));
     expect([...keys].sort()).toEqual(['near3', 'title']);
     expect(ARTIST_SIDES.expert.categories(ctx).map((c) => c.key)).toContain('track_no');
-    expect(ARTIST_SIDES.expert.categories({ artistNames: ['A', 'B'] }).map((c) => c.key)).toContain('artist_pick');
+    expect(ARTIST_SIDES.expert.categories({ artistNames: ['A', 'B'], decades: [] }).map((c) => c.key)).toContain('artist_pick');
     expect(SIDES.beginner.categories(ctx)).toHaveLength(5);
+  });
+  it('splits the chosen decades for "before"', () => {
+    expect(pivotYear([1970, 1980, 1990, 2000, 2010])).toBe(2000);
+    expect(pivotYear([1990, 1980])).toBe(1990);
+    expect(pivotYear([1980])).toBe(1985);
+    expect(pivotYear([])).toBe(2000);
+    const before = new BeforeYearCategory('yellow');
+    const ctx = { artistNames: [], decades: [1980, 1990] };
+    expect(before.question(track(), ctx).ask).toBe('Saiu antes de 1990? Sim ou não.');
+    expect(before.answer(track({ year: 1992 }), ctx)).toBe('Não, 1990 ou depois');
+  });
+  it('draws lyrics twice as often as the others', () => {
+    const chorus = { shown: 'a b', hidden: ['c', 'd'], wrong: ['e f', 'g h'] };
+    const ctx = { artistNames: [], decades: [] };
+    // 5 categorias, a letra com peso 2: total 6; rng 0.99 cai na letra (última).
+    expect(SIDES.expert.draw(ctx, track({ chorus }), () => 0.99)!.key).toBe('chorus');
+    expect(SIDES.expert.draw(ctx, track({ chorus }), () => 4.5 / 6)!.key).toBe('chorus');
+    expect(SIDES.expert.draw(ctx, track({ chorus: null }), () => 0.99)!.key).not.toBe('chorus');
+    const q = SIDES.expert.categories(ctx).find((c) => c.key === 'chorus')!.question(track({ chorus }), ctx);
+    expect([...q.options!].sort()).toEqual(['c d', 'e f', 'g h']);
   });
 });
 
 describe('chorus', () => {
   it('hides the end of the most repeated line', () => {
-    const text = 'first verse line here\nla la sing it loud now\nanother verse line here\nla la sing it loud now';
-    expect(chorusFromLyrics(text)).toEqual({ shown: 'la la sing it', hidden: ['loud', 'now'] });
+    const text = 'first verse line here,\nla la sing it loud now!\nanother verse goes there\nla la sing it loud now\nsomething sung so loud now\nback up (yeah yeah)';
+    const c = chorusFromLyrics(text)!;
+    expect(c).toMatchObject({ shown: 'la la sing it', hidden: ['loud', 'now'] });
+    expect([...c.wrong].sort()).toEqual(['goes there', 'line here']); // "so loud now" acaba igual ao certo
     expect(chorusFromLyrics('one two three four\nfive six seven eight')).toBeNull();
+    expect(chorusFromLyrics('one two three four\none two three four\nfive six seven eight')).toBeNull(); // só 1 fim errado
   });
 });
 

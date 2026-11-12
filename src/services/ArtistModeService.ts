@@ -97,8 +97,8 @@ export class ArtistModeService {
         studioTitles: idx.studio.map((a) => a.title),
         pivot: idx.pivot,
         trackNo,
-        chorus,
       },
+      chorus,
     };
   }
 }

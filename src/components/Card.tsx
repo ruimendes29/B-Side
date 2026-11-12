@@ -1,5 +1,6 @@
 import type { Phase, Track } from '../types';
 import type { CategoryView } from '../hooks/useGame';
+import { ChoiceList } from './ChoiceList';
 
 interface Props {
   phase: Phase;
@@ -28,44 +29,50 @@ export function Card({ phase, track, revealed, year, front, answer, spinning, on
   if (phase === 'playing' && front) msg = 'Escrevam a resposta!';
   if (spinning) msg = 'A sortear a categoria…';
   const showAnswer = revealed && year !== undefined && answer;
+  const options = front && !front.rolling ? front.cat.options : undefined;
 
   return (
-    <div className="card-wrap">
-      <div
-        className={`card${revealed ? ' flipped' : ''}`}
-        role="button"
-        tabIndex={0}
-        aria-label={revealed ? 'Carta revelada' : 'Carta — clica para revelar'}
-        onClick={() => { if (track && !revealed) onReveal(); }}
-      >
-        <div className="face front">
-          {front && (
-            <div className={`cat${front.rolling ? ' rolling' : ''}`} style={catStyle(front.cat.color)}>
-              <span className="cat-name">{front.cat.name}</span>
-              <span className="cat-ask">{front.rolling ? '' : front.cat.ask}</span>
-            </div>
-          )}
-          <div className="q" aria-hidden="true">?</div>
-          <div className="eq" aria-hidden="true"><span /><span /><span /><span /><span /></div>
-          <p>{msg}</p>
-        </div>
-        <div className={`face back${answer ? ' has-cat' : ''}`}>
-          <div className="back-bg" style={{ backgroundImage: revealed && track?.image ? `url("${track.image}")` : 'none' }} />
-          {revealed && track && (
-            <div className="back-content">
-              <div className="b-artist">{track.artists.join(', ')}</div>
-              <div className="b-year">{year === undefined ? '…' : year ?? '????'}</div>
-              <div className="b-title">{track.title}</div>
-              {showAnswer && (
-                <div className="b-cat" style={catStyle(answer.color)}>
-                  <span className="b-cat-name">{answer.name}</span>
-                  <b className="b-cat-answer">{answer.answer}</b>
-                </div>
-              )}
-            </div>
-          )}
+    <>
+      <div className="card-wrap">
+        <div
+          className={`card${revealed ? ' flipped' : ''}`}
+          role="button"
+          tabIndex={0}
+          aria-label={revealed ? 'Carta revelada' : 'Carta — clica para revelar'}
+          onClick={() => { if (track && !revealed) onReveal(); }}
+        >
+          <div className="face front">
+            {front && (
+              <div className={`cat${front.rolling ? ' rolling' : ''}`} style={catStyle(front.cat.color)}>
+                <span className="cat-name">{front.cat.name}</span>
+                <span className="cat-ask">{front.rolling ? '' : front.cat.ask}</span>
+              </div>
+            )}
+            <div className="q" aria-hidden="true">?</div>
+            <div className="eq" aria-hidden="true"><span /><span /><span /><span /><span /></div>
+            <p>{msg}</p>
+          </div>
+          <div className={`face back${answer ? ' has-cat' : ''}`}>
+            <div className="back-bg" style={{ backgroundImage: revealed && track?.image ? `url("${track.image}")` : 'none' }} />
+            {revealed && track && (
+              <div className="back-content">
+                <div className="b-artist">{track.artists.join(', ')}</div>
+                <div className="b-year">{year === undefined ? '…' : year ?? '????'}</div>
+                <div className="b-title">{track.title}</div>
+                {showAnswer && (
+                  <div className="b-cat" style={catStyle(answer.color)}>
+                    <span className="b-cat-name">{answer.name}</span>
+                    <b className="b-cat-answer">{answer.answer}</b>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      {options && options.length > 0 && (
+        <ChoiceList options={options} color={front!.cat.color} correct={showAnswer ? options.indexOf(answer.answer) : -1} />
+      )}
+    </>
   );
 }

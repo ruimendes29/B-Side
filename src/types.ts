@@ -25,7 +25,8 @@ export interface Settings {
   ptSplit?: boolean;
 }
 
-export interface Chorus { shown: string; hidden: string[] }
+/** Verso do refrão: `hidden` é o fim certo, `wrong` são fins de outros versos da mesma letra. */
+export interface Chorus { shown: string; hidden: string[]; wrong: string[] }
 
 /** Dados do modo por artista, para as categorias. */
 export interface ArtistFacts {
@@ -35,7 +36,6 @@ export interface ArtistFacts {
   studioTitles: string[];
   pivot: number;
   trackNo: number | null;
-  chorus: Chorus | null;
 }
 
 export interface Track {
@@ -54,6 +54,8 @@ export interface Track {
   rank?: number;
   lang?: LangKey;
   facts?: ArtistFacts;
+  /** Refrão do LRCLIB, para a categoria da letra (null sem refrão claro). */
+  chorus?: Chorus | null;
 }
 
 export interface HistoryEntry {
