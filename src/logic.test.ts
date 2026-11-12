@@ -137,3 +137,13 @@ describe('tooltip placement', () => {
     for (const t of CATEGORY_TONES) expect(TOOLTIP_THEMES[t].background).toBe(`var(--cat-${t})`);
   });
 });
+
+describe('multiplayer', () => {
+  it('never sends the hidden lyric words to the phones', async () => {
+    const { publicCategory } = await import('./multiplayer/roundCategory');
+    const view = { key: 'chorus', name: 'Completar o refrão', color: 'var(--cat-purple)', ask: '?', lyric: { shown: 'la la', hidden: ['loud', 'now'] } };
+    const pub = publicCategory(view);
+    expect(pub).toEqual({ name: 'Completar o refrão', color: 'var(--cat-purple)', ask: '?', lyric: { shown: 'la la', blanks: 2 } });
+    expect(JSON.stringify(pub)).not.toContain('loud');
+  });
+});

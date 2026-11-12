@@ -1,5 +1,10 @@
 {
   "framework": "vite",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/tv", "destination": "/index.html" },
+    { "source": "/j", "destination": "/index.html" },
+    { "source": "/j/:code", "destination": "/index.html" }
+  ]
 }

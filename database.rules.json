@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "sessions": {
+      "$code": {
+        ".read": "auth != null && $code.matches(/^[A-Z0-9]{4}$/)",
+        ".write": "auth != null && $code.matches(/^[A-Z0-9]{4}$/) && (data.exists() ? data.child('tv').val() === auth.uid : newData.child('tv').val() === auth.uid)",
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $code + '/tv').exists()",
+            ".validate": "newData.hasChildren(['name', 'joinedAt']) && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 24 && newData.child('joinedAt').isNumber()"
+          }
+        },
+        "answers": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $code + '/players/' + auth.uid).exists() && root.child('sessions/' + $code + '/round/revealed').val() === false",
+            ".validate": "newData.child('round').val() === root.child('sessions/' + $code + '/round/n').val() && (newData.child('text').exists() || newData.child('drawing').exists())",
+            "round": { ".validate": "newData.isNumber()" },
+            "text": { ".validate": "newData.isString() && newData.val().length <= 300" },
+            "drawing": { ".validate": "newData.isString() && newData.val().length <= 300000 && newData.val().beginsWith('data:image/png;base64,')" },
+            "$other": { ".validate": false }
+          }
+        },
+        "commands": {
+          "$id": {
+            ".write": "auth != null && !data.exists() && root.child('sessions/' + $code + '/host').val() === auth.uid",
+            ".validate": "newData.child('action').isString() && newData.child('action').val().matches(/^(start|play|reveal|next|replay)$/)"
+          }
+        }
+      }
+    }
+  }
+}

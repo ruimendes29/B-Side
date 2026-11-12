@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { sameName, useSettings } from './hooks/useSettings';
 import { useStatus } from './hooks/useStatus';
 import { useGame } from './hooks/useGame';
@@ -31,10 +31,15 @@ function sourceLabel(s: Settings) {
   return `${side.letter} · ${side.name} · ${pill}`;
 }
 
-export default function App() {
+/** O que a página da TV junta ao jogo: o ecrã de espera (em vez do palco) e as respostas por baixo da carta. */
+export interface GameExtras { overlay?: ReactNode; belowCard?: ReactNode }
+const noExtras = (): GameExtras => ({});
+
+export default function App({ useExtras = noExtras }: { useExtras?: (game: ReturnType<typeof useGame>) => GameExtras }) {
   const [settings, update] = useSettings();
   const [status, setStatus] = useStatus();
   const game = useGame(settings, setStatus);
+  const extras = useExtras(game); // o mesmo hook durante toda a vida da página
   const { phase, track, revealed, round, actions } = game;
   const [menuOpen, setMenuOpen] = useState(false);
   const blocked = useMemo(() => new BlockList(settings.blockedArtists), [settings.blockedArtists]);
@@ -60,8 +65,10 @@ export default function App() {
       const onButton = target.closest('button, a, [role="button"]');
       if (e.code === 'Space' && !onButton) { e.preventDefault(); actions.play(); }
       else if (e.key === 'Enter' && (!onButton || target.classList.contains('card'))) { e.preventDefault(); actions.reveal(); }
-      else if (e.key === 'r' || e.key === 'R') actions.replay();
-      else if (e.key === 'n' || e.key === 'N' || e.key === 'ArrowRight') actions.next();
+      else if (e.key === 'r' || e.key === 'R' || e.key === 'ArrowLeft') actions.replay();
+      else if (e.key === 'n' || e.key === 'N' || e.key === 'ArrowRight' || e.key === 'MediaTrackNext') actions.next();
+      // Comandos de TV: play/pausa e ⏭ chegam como teclas de media.
+      else if (e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaPause') { e.preventDefault(); actions.play(); }
       else if (e.key === 'Escape') setMenuOpen(false);
     };
     document.addEventListener('keydown', onKey);
@@ -82,19 +89,22 @@ export default function App() {
             </button>
             <div className="round">Ronda <span>{round}</span></div>
             <div className="pill">{sourceLabel(settings)}</div>
+            {!extras.overlay && useExtras === noExtras && <a className="pill tv-link" href="/tv">📺 Jogar na TV</a>}
           </header>
 
-          <section className={`stage${phase === 'playing' ? ' is-playing' : ''}`}>
-            {round === 0 && phase === 'idle' && (
-              <div className="side-pick">
-                <span>Categorias</span>
-                <Segmented value={settings.side} options={SIDE_OPTIONS} onChange={(side) => update({ side })} />
-              </div>
-            )}
+          {extras.overlay ?? (
+            <section className={`stage${phase === 'playing' ? ' is-playing' : ''}`}>
+              {round === 0 && phase === 'idle' && (
+                <div className="side-pick">
+                  <span>Categorias</span>
+                  <Segmented value={settings.side} options={SIDE_OPTIONS} onChange={(side) => update({ side })} />
+                </div>
+          )}
             <Card {...game} onReveal={actions.reveal} />
             <Progress clip={game.clip} playing={phase === 'playing'} defaultMs={settings.duration * 1000} />
             <Controls phase={phase} hasTrack={!!track} revealed={revealed}
               onPlay={actions.play} onReplay={actions.replay} onNext={actions.next} onReveal={actions.reveal} />
+            {extras.belowCard}
             {revealed && game.year !== undefined && track?.link && (
               <a className="open-link" href={track.link} target="_blank" rel="noopener">Abrir na Deezer ↗</a>
             )}
@@ -105,6 +115,7 @@ export default function App() {
             )}
             <p className={`status${status.kind === 'error' ? ' error' : ''}`} role="status" aria-live="polite">{status.text}</p>
           </section>
+          )}
 
           <History history={game.history} onBlock={blockArtist} onClear={actions.clearHistory} />
         </main>

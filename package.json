@@ -6,13 +6,17 @@
     "dev": "vite --host 127.0.0.1 --port 8888",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8888",
-    "test": "vitest run"
+    "test": "vitest run",
+    "emulators": "firebase emulators:start --only auth,database --project demo-b-side"
   },
   "dependencies": {
+    "firebase": "13.3.0",
+    "qrcode": "1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
