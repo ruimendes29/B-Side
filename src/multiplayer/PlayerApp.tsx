@@ -1,21 +1,51 @@
 // Página do telemóvel (/j/CODIGO): entrar na sessão da TV, esperar pelo anfitrião e responder em cada ronda.
 import { useEffect, useState } from 'react';
 import { store } from '../lib/util';
+import type { Settings } from '../types';
+import { loadSettings, type UpdateSettings } from '../hooks/useSettings';
+import { type SetStatus, useStatus } from '../hooks/useStatus';
 import { GlassCard } from '../components/GlassCard';
+import { CategoriesPanel } from '../components/settings/CategoriesPanel';
+import { SongsPanel } from '../components/settings/SongsPanel';
+import { FamePanel } from '../components/settings/FamePanel';
+import { ArtistsPanel } from '../components/settings/ArtistsPanel';
+import { LanguagesPanel } from '../components/settings/LanguagesPanel';
+import { ClipPanel } from '../components/settings/ClipPanel';
 import { Whiteboard } from './Whiteboard';
 import {
-  type Answer, type Command, type Session, isCode, joinSession, normalizeCode, sendCommand, submitAnswer, watchPlayerView,
+  type Answer, type Command, type Session, isCode, joinSession, normalizeCode, sendCommand, setSessionSettings, submitAnswer,
+  watchPlayerView,
 } from './session';
 
 type View = Omit<Session, 'answers'>;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** As definições do jogo, guardadas na sessão: só o anfitrião as vê e muda (os mesmos painéis do site). */
+function HostSettings({ code, saved, setStatus }: { code: string; saved?: Partial<Settings>; setStatus: SetStatus }) {
+  const settings = loadSettings(saved ?? {});
+  const update: UpdateSettings = (patch) => {
+    const next = { ...settings, ...(typeof patch === 'function' ? patch(settings) : patch) };
+    setSessionSettings(code, next).catch((e) => setStatus(message(e), 'error'));
+  };
+  return (
+    <div className="host-settings">
+      <CategoriesPanel settings={settings} update={update} />
+      <SongsPanel settings={settings} update={update} setStatus={setStatus} />
+      {settings.mode !== 'playlists' && <FamePanel settings={settings} update={update} />}
+      {settings.mode === 'artists' && <ArtistsPanel settings={settings} update={update} setStatus={setStatus} />}
+      {settings.mode === 'decades' && <LanguagesPanel settings={settings} update={update} />}
+      <ClipPanel settings={settings} update={update} />
+    </div>
+  );
+}
 
 export default function PlayerApp({ initialCode }: { initialCode: string }) {
   const [code, setCode] = useState(initialCode);
   const [name, setName] = useState(() => store.get('playerName', ''));
   const [me, setMe] = useState<string | null>(null);
   const [view, setView] = useState<View | null | undefined>(undefined); // undefined = a carregar, null = sessão acabou
-  const [error, setError] = useState('');
+  const [status, setStatus] = useStatus();
+  const setError = (text: string) => setStatus(text, 'error');
   const [busy, setBusy] = useState(false);
   const [sentRound, setSentRound] = useState(0);
 
@@ -83,6 +113,7 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
           {isHost
             ? <button type="button" className="btn btn-green" onClick={() => command('start')}>Começar jogo</button>
             : <p className="hint">À espera que {hostName ?? 'o anfitrião'} comece o jogo.</p>}
+          {isHost && <HostSettings code={code} saved={view.settings} setStatus={setStatus} />}
         </div>
       );
     } else if (!round) {
@@ -109,10 +140,12 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
               {round.answer && <span>Resposta: <b>{round.answer}</b></span>}
               <p className="hint">Vê as respostas de todos na TV.</p>
             </div>
+          ) : round.locked ? (
+            <p className="player-wait"><b>Results are in!</b><br />Olha para a TV.</p>
           ) : (
             <Whiteboard key={round.n} round={round.n} onSubmit={send} sent={sentRound === round.n} />
           )}
-          {sentRound === round.n && !round.revealed && <p className="hint">Resposta enviada. Podes mudá-la até revelarem.</p>}
+          {sentRound === round.n && !round.revealed && !round.locked && <p className="hint">Resposta enviada. Podes mudá-la até revelarem.</p>}
         </div>
       );
     }
@@ -126,6 +159,10 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
             <button type="button" className="btn btn-outline" onClick={() => command('reveal')}>Revelar</button>
             <button type="button" className="btn btn-outline" onClick={() => command('next')}>Próxima</button>
           </div>
+          <details className="host-settings-toggle">
+            <summary>Definições</summary>
+            <HostSettings code={code} saved={view.settings} setStatus={setStatus} />
+          </details>
         </>
       );
     }
@@ -135,7 +172,7 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
     <div className="player-app">
       <header className="player-top"><span className="brand-name">B-<b>Side</b></span>{me && <span className="pill">{code}</span>}</header>
       {body}
-      {error && <p className="status error" role="alert">{error}</p>}
+      {status.text && <p className={`status${status.kind === 'error' ? ' error' : ''}`} role="status">{status.text}</p>}
     </div>
   );
 }

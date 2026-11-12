@@ -494,12 +494,12 @@ kbd {
 .tv-link { margin-left: 0; color: var(--text); text-decoration: none; }
 .tv-link:hover { color: var(--green); }
 .tv-lobby {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
-  padding: 24px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2vh;
+  height: 100%; padding: 3vh; box-sizing: border-box; text-align: center;
 }
 .tv-join { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; justify-content: center; }
 .tv-join p { margin: 0; color: var(--sub); font-size: 18px; }
-.tv-qr { width: 260px; height: 260px; border-radius: 16px; background: #fff; image-rendering: pixelated; }
+.tv-qr { width: min(38vh, 30vw); height: min(38vh, 30vw); border-radius: 16px; background: #fff; image-rendering: pixelated; }
 .tv-url { color: var(--text) !important; font-size: 24px !important; font-weight: 700; margin: 6px 0 !important; }
 .tv-code { font-size: 88px !important; font-weight: 900; letter-spacing: .12em; color: var(--green) !important; line-height: 1.1; }
 .big-count { margin: 0; font-size: 28px; font-weight: 800; }
@@ -508,20 +508,6 @@ kbd {
 .tv-progress { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin: 0; color: var(--sub); font-weight: 600; }
 .tv-progress span { padding: 4px 12px; border-radius: 999px; background: var(--elev-3); color: var(--muted); }
 .tv-progress span.done { background: var(--green); color: #000; }
-.tv-answers {
-  width: 100%; max-width: 1100px;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px;
-}
-.tv-answer {
-  margin: 0; padding: 10px; border-radius: 16px;
-  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14);
-  display: flex; flex-direction: column; gap: 8px;
-}
-.tv-answer figcaption { font-weight: 800; }
-.tv-answer img { width: 100%; border-radius: 10px; background: #fff; }
-.tv-answer p { margin: 0; padding: 10px; border-radius: 10px; background: #fff; color: #111; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
-.tv-answer p.none { background: none; color: var(--muted); font-weight: 500; font-size: 15px; padding: 0; }
-
 /* ---------- Telemóvel do jogador (/j/CODIGO) ---------- */
 .player-app {
   min-height: 100dvh; box-sizing: border-box;
@@ -574,3 +560,72 @@ kbd {
 .board.mode-type canvas { pointer-events: none; }
 .board-send { width: 100%; }
 .btn:disabled { opacity: .45; cursor: default; transform: none; }
+
+/* ---------- TV: tudo no ecrã, sem scroll ---------- */
+.tv {
+  height: 100vh; height: 100dvh; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) min(300px, 22vw);
+  background: var(--bg);
+}
+.tv-main { display: flex; flex-direction: column; min-height: 0; padding: 2vh 2vw; box-sizing: border-box; }
+.tv-top { display: flex; align-items: center; gap: 2vw; }
+.tv-round { font-size: min(4vh, 32px); font-weight: 900; }
+.tv-top .pill { margin-left: auto; color: var(--text); letter-spacing: .06em; }
+.tv-stage {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh;
+}
+.tv-stage .status { margin: 0; }
+.tv-side { min-height: 0; overflow-y: auto; border-left: 1px solid rgba(255, 255, 255, .08); font-size: 13px; }
+.tv-side .history { padding: 2vh 10px; }
+.tv-side .keys, .tv-side .block, .tv-side .history-head .btn-link { display: none; }
+.tv-side .tracks li { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 6px 4px; }
+.tv-side .tracks .n, .tv-side .tracks img, .tv-side .tracks .noimg { display: none; }
+
+/* Carta mais pequena e o texto escala com ela (unidades do contentor). */
+.tv .card-wrap { width: min(40vh, 30vw); container-type: inline-size; }
+.tv .glass { width: min(56vh, 42vw); }
+.tv .front .q { font-size: 30cqw; }
+.tv .front:has(.cat:not([hidden])) { padding-top: 28cqw; }
+.tv .front:has(.cat:not([hidden])) .q { font-size: 24cqw; }
+.tv .front:has(.cat:not([hidden])) .eq, .tv .eq { height: 24cqw; }
+.tv .front p { font-size: 4.4cqw; }
+.tv .front .cat-name { font-size: 5cqw; }
+.tv .front .cat-ask { font-size: 3.7cqw; }
+.tv .b-artist { font-size: 5.8cqw; }
+.tv .b-title { font-size: 5.2cqw; }
+.tv .b-year, .tv .back.has-cat .b-year { font-size: 25cqw; }
+.tv .b-cat-name { font-size: 3.4cqw; }
+.tv .b-cat-answer { font-size: 5cqw; }
+.tv .back-content, .tv .back.has-cat .back-content { padding: 5cqw; }
+
+.tv-overlay {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(0, 0, 0, .86);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.tv-results {
+  height: 100%; box-sizing: border-box; padding: 4vh 4vw;
+  display: flex; flex-direction: column; align-items: center; gap: 3vh;
+}
+.tv-results h1 { margin: 0; font-size: min(8vh, 64px); font-weight: 900; color: var(--green); }
+.tv-results-grid {
+  flex: 1; min-height: 0; width: 100%;
+  display: grid; gap: 2.5vh 2vw;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+}
+.tv-results figure { margin: 0; min-height: 0; display: flex; flex-direction: column; gap: 1vh; }
+.board-shot { position: relative; flex: 1; min-height: 0; border-radius: 14px; background: #fff; overflow: hidden; }
+.board-shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.board-shot p {
+  position: relative; margin: 0; padding: 1.5vh 1vw;
+  color: #111; font-size: min(4vh, 34px); font-weight: 800; line-height: 1.2; overflow-wrap: anywhere;
+}
+.board-shot.none { background: rgba(255, 255, 255, .08); }
+.board-shot.none p { color: var(--muted); font-weight: 600; font-size: min(2.6vh, 20px); }
+.tv-results figcaption { text-align: center; font-size: min(3vh, 24px); font-weight: 800; }
+
+/* Definições do anfitrião no telemóvel */
+.host-settings { display: flex; flex-direction: column; gap: 10px; width: 100%; text-align: left; }
+.host-settings-toggle summary { cursor: pointer; font-weight: 700; color: var(--sub); padding: 8px 0; }

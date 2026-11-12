@@ -4,6 +4,10 @@
       "$code": {
         ".read": "auth != null && $code.matches(/^[A-Z0-9]{4}$/)",
         ".write": "auth != null && $code.matches(/^[A-Z0-9]{4}$/) && (data.exists() ? data.child('tv').val() === auth.uid : newData.child('tv').val() === auth.uid)",
+        "settings": {
+          ".write": "auth != null && root.child('sessions/' + $code + '/host').val() === auth.uid",
+          ".validate": "newData.hasChildren(['mode', 'side'])"
+        },
         "players": {
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $code + '/tv').exists()",
@@ -12,7 +16,7 @@
         },
         "answers": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $code + '/players/' + auth.uid).exists() && root.child('sessions/' + $code + '/round/revealed').val() === false",
+            ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $code + '/players/' + auth.uid).exists() && root.child('sessions/' + $code + '/round/revealed').val() === false && root.child('sessions/' + $code + '/round/locked').val() !== true",
             ".validate": "newData.child('round').val() === root.child('sessions/' + $code + '/round/n').val() && (newData.child('text').exists() || newData.child('drawing').exists())",
             "round": { ".validate": "newData.isNumber()" },
             "text": { ".validate": "newData.isString() && newData.val().length <= 300" },
