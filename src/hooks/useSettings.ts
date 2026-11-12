@@ -34,7 +34,7 @@ export function loadSettings(saved: Partial<Settings> = store.get<Partial<Settin
   if (!['decades', 'playlists', 'artists'].includes(s.mode)) s.mode = DEFAULTS.mode;
   s.artists = (Array.isArray(s.artists) ? s.artists : []).filter((a) => a && a.id && a.name);
   if (!(s.fame in FAME)) s.fame = DEFAULTS.fame;
-  if (!['beginner', 'expert', 'off'].includes(s.side)) s.side = DEFAULTS.side;
+  if (!['beginner', 'expert'].includes(s.side)) s.side = DEFAULTS.side; // 'off' ("Sem categoria") já não existe
   if (!Array.isArray(s.decades) || !s.decades.length) s.decades = DEFAULTS.decades;
   const langs = Object.fromEntries(Object.entries(s.languages || {}).filter(([k]) => languages.has(k)));
   s.languages = normalizeShares(Object.keys(langs).length ? langs : DEFAULTS.languages);

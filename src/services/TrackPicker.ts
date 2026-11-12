@@ -76,7 +76,8 @@ export class TrackPicker {
     if (s.mode === 'playlists') {
       const id = DeezerService.parsePlaylistId(s.dzPlaylist);
       if (!id) throw new Error('Cola o link de uma playlist da Deezer nas definições.');
-      const track = await deezer.randomFromPlaylist(id, exclude, blocked, top);
+      // Sem filtro de fama: a playlist já é a escolha de quem joga.
+      const track = await deezer.randomFromPlaylist(id, exclude, blocked);
       return { ...track, yearPromise: this.resolveYear(track), chorus: await this.chorus(track) };
     }
 

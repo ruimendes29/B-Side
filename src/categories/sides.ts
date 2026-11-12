@@ -67,11 +67,8 @@ export const ARTIST_SIDES: Record<SideKey, CategorySide> = {
   ]),
 };
 
-/** Lado das categorias para este modo, ou null com "Sem categoria". */
-export const sideFor = (mode: Mode, side: string): CategorySide | null => {
-  const sides = mode === 'artists' ? ARTIST_SIDES : SIDES;
-  return side in sides ? sides[side as SideKey] : null;
-};
+/** Lado das categorias para este modo. */
+export const sideFor = (mode: Mode, side: SideKey): CategorySide => (mode === 'artists' ? ARTIST_SIDES : SIDES)[side];
 
 /** Contexto das categorias a partir das definições. */
 export const contextFor = (s: Settings, pastArtists: CategoryContext['pastArtists'] = []): CategoryContext => ({

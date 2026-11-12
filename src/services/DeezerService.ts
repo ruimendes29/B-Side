@@ -167,10 +167,10 @@ export class DeezerService {
     return m ? m[1] : null;
   }
 
-  async randomFromPlaylist(id: string, exclude: Set<string>, blocked: BlockList, top = 1): Promise<Track> {
+  async randomFromPlaylist(id: string, exclude: Set<string>, blocked: BlockList): Promise<Track> {
     if (!this.totals.has(id)) this.totals.set(id, (await this.get<{ nb_tracks?: number }>(`/playlist/${id}`)).nb_tracks || 0);
     for (let attempt = 0; attempt < 8; attempt++) {
-      const t = await this.randomTrackFrom(id, this.totals.get(id)!, exclude, blocked, { group: `playlist:${id}`, top });
+      const t = await this.randomTrackFrom(id, this.totals.get(id)!, exclude, blocked, { group: `playlist:${id}` });
       if (t) return t;
     }
     throw new Error('Não encontrei músicas novas nessa playlist da Deezer.');

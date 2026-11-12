@@ -27,8 +27,8 @@ function sourceLabel(s: Settings) {
     const ds = [...s.decades].sort();
     pill = `${langs} · ${ds.length === DECADES.length ? 'todas as décadas' : ds.map(decadeLabel).join(' ')}`;
   }
-  const side = s.side === 'off' ? null : SIDES[s.side];
-  return side ? `${side.letter} · ${side.name} · ${pill}` : pill;
+  const side = SIDES[s.side];
+  return `${side.letter} · ${side.name} · ${pill}`;
 }
 
 export default function App() {

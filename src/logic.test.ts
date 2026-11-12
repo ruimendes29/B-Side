@@ -117,6 +117,7 @@ describe('settings', () => {
     const { loadSettings } = await import('./hooks/useSettings');
     expect(loadSettings({ bingo: 'expert' } as never).side).toBe('expert');
     expect(loadSettings({}).side).toBe('beginner');
+    expect(loadSettings({ side: 'off' } as never).side).toBe('beginner');
   });
 });
 
