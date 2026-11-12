@@ -48,11 +48,15 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
     next: null as { gen: number; promise: Promise<Track> } | null,
     prefetchTimer: 0,
     played: new Set<string>(store.get<string[]>('played', [])),
+    recent: [] as { artist: string; lang?: Track['lang'] }[],
     pickKey: pickKey(settings),
   }).current;
 
   const setPhase = (p: Phase) => { r.phase = p; setPhaseState(p); };
-  const ctx = (): CategoryContext => contextFor(settingsRef.current);
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  // Músicas tocadas nesta sessão (mesmo sem revelar) e depois o histórico guardado.
+  const ctx = (): CategoryContext => contextFor(settingsRef.current, [...r.recent, ...historyRef.current]);
 
   const pick = () => {
     const gen = r.gen;
@@ -194,6 +198,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
       setClip(null);
       setRound((n) => n + 1);
       r.played.add(t.id);
+      r.recent = [{ artist: t.artists.join(', '), lang: t.lang }, ...r.recent].slice(0, 100);
       store.set('played', [...r.played].slice(-3000));
       if (r.category) void r.category.answer(t, ctx()); // adianta pedidos (ex.: grupo ou solo)
       setPhase('ready');

@@ -1,7 +1,7 @@
 // Categorias: antes de cada música sorteia-se uma.
 // Cada categoria sabe a pergunta, a cor, se a música tem dados para ela e a resposta certa.
-import type { ArtistFacts, Track } from '../types';
-import { shuffle } from '../lib/util';
+import type { ArtistFacts, LangKey, Track } from '../types';
+import { normalize, shuffle } from '../lib/util';
 import { musicBrainz } from '../services/MusicBrainzService';
 import { type CategoryTone, toneVar } from '../theme/colors';
 
@@ -10,6 +10,8 @@ export interface CategoryContext {
   artistNames: string[];
   /** Décadas escolhidas (modo por década); vazio nos outros modos. */
   decades: number[];
+  /** Artistas das músicas já tocadas (as mais recentes primeiro), para opções erradas. */
+  pastArtists?: { artist: string; lang?: LangKey }[];
 }
 
 /** Pergunta na frente da carta; `options` aparecem por baixo da carta como A, B, C… */
@@ -98,12 +100,11 @@ export class ExactYearCategory extends YearCategory {
 
 export class ChorusCategory extends Category {
   override readonly weight = 2; // o Rui quer a letra mais vezes
-  constructor(color: CategoryTone) { super('chorus', 'Completar o refrão', 'Como acaba este verso do refrão?', color); }
+  constructor(color: CategoryTone) { super('chorus', 'Completar o refrão', 'Escreve as palavras que faltam no verso do refrão.', color); }
   isAvailable(t: Track) { return Boolean(t.chorus); }
-  question(t: Track, _ctx: CategoryContext, rng: () => number = Math.random) {
+  question(t: Track) {
     const c = t.chorus;
-    if (!c) return { ask: this.ask };
-    return { ask: `«${c.shown} …»`, options: shuffle([c.hidden.join(' '), ...c.wrong], rng) };
+    return { ask: c ? `«${c.shown} ${c.hidden.map(() => '____').join(' ')}»` : this.ask };
   }
   answer(t: Track) { return t.chorus?.hidden.join(' ') ?? '—'; }
 }
@@ -117,6 +118,33 @@ export class TitleCategory extends Category {
 
 export class SingerCategory extends Category {
   constructor(color: CategoryTone) { super('artist', 'Grupo ou cantor', 'Quem canta? Num dueto basta o artista principal.', color); }
+  answer(t: Track) { return t.artists.join(', '); }
+}
+
+/** Quem canta, entre três artistas: o certo e dois de músicas já tocadas na mesma língua. */
+export class ArtistChoiceCategory extends Category {
+  constructor(color: CategoryTone) { super('artist_choice', 'Quem canta?', 'Escolhe entre três artistas.', color); }
+
+  /** Artistas diferentes das últimas músicas tocadas, sem o desta (nem duetos com ele). */
+  private others(t: Track, ctx: CategoryContext) {
+    const own = normalize(t.artists[0] || '');
+    const seen = new Set<string>();
+    return (ctx.pastArtists ?? []).slice(0, 100)
+      .filter((h) => !t.lang || h.lang === t.lang) // outra língua denunciava a resposta
+      .map((h) => h.artist)
+      .filter((a) => {
+        const k = normalize(a);
+        if (!own || !k || k.includes(own) || own.includes(k) || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  }
+
+  isAvailable(t: Track, ctx: CategoryContext) { return this.others(t, ctx).length >= 2; }
+  question(t: Track, ctx: CategoryContext, rng: () => number = Math.random) {
+    const wrong = shuffle(this.others(t, ctx), rng).slice(0, 2);
+    return { ask: this.ask, options: shuffle([this.answer(t), ...wrong], rng) };
+  }
   answer(t: Track) { return t.artists.join(', '); }
 }
 

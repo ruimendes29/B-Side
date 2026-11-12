@@ -73,26 +73,40 @@ describe('categories', () => {
     expect(before.question(track(), ctx).ask).toBe('Saiu antes de 1990? Sim ou não.');
     expect(before.answer(track({ year: 1992 }), ctx)).toBe('Não, 1990 ou depois');
   });
+  it('swaps "Década" for "Quem canta?" with 3 decades or fewer', () => {
+    const keys = (decades: number[]) => SIDES.beginner.categories({ artistNames: [], decades }).map((c) => c.key);
+    expect(keys([1980, 1990])).toContain('artist_choice');
+    expect(keys([1980, 1990])).not.toContain('decade');
+    expect(keys([1970, 1980, 1990, 2000])).toContain('decade');
+    expect(keys([])).toContain('decade'); // playlist
+    const h = (artist: string, lang: 'pt' | 'en' = 'pt') => ({ artist, lang });
+    const choice = SIDES.beginner.categories({ artistNames: [], decades: [1980] }).find((c) => c.key === 'artist_choice')!;
+    const t = track({ artists: ['Xutos & Pontapés'], lang: 'pt' });
+    // Só um artista diferente na mesma língua (o dueto com o próprio e o inglês não contam): não serve.
+    const few = { artistNames: [], decades: [1980], pastArtists: [h('Rui Veloso'), h('Xutos & Pontapés'), h('Madonna', 'en')] };
+    expect(choice.isAvailable(t, few)).toBe(false);
+    const ok = { ...few, pastArtists: [...few.pastArtists, h('GNR'), h('GNR')] };
+    const q = choice.question(t, ok);
+    expect([...q.options!].sort()).toEqual(['GNR', 'Rui Veloso', 'Xutos & Pontapés']);
+    expect(choice.answer(t, ok)).toBe('Xutos & Pontapés');
+  });
   it('draws lyrics twice as often as the others', () => {
-    const chorus = { shown: 'a b', hidden: ['c', 'd'], wrong: ['e f', 'g h'] };
+    const chorus = { shown: 'a b', hidden: ['c', 'd'] };
     const ctx = { artistNames: [], decades: [] };
     // 5 categorias, a letra com peso 2: total 6; rng 0.99 cai na letra (última).
     expect(SIDES.expert.draw(ctx, track({ chorus }), () => 0.99)!.key).toBe('chorus');
     expect(SIDES.expert.draw(ctx, track({ chorus }), () => 4.5 / 6)!.key).toBe('chorus');
     expect(SIDES.expert.draw(ctx, track({ chorus: null }), () => 0.99)!.key).not.toBe('chorus');
     const q = SIDES.expert.categories(ctx).find((c) => c.key === 'chorus')!.question(track({ chorus }), ctx);
-    expect([...q.options!].sort()).toEqual(['c d', 'e f', 'g h']);
+    expect(q).toEqual({ ask: '«a b ____ ____»' });
   });
 });
 
 describe('chorus', () => {
   it('hides the end of the most repeated line', () => {
-    const text = 'first verse line here,\nla la sing it loud now!\nanother verse goes there\nla la sing it loud now\nsomething sung so loud now\nback up (yeah yeah)';
-    const c = chorusFromLyrics(text)!;
-    expect(c).toMatchObject({ shown: 'la la sing it', hidden: ['loud', 'now'] });
-    expect([...c.wrong].sort()).toEqual(['goes there', 'line here']); // "so loud now" acaba igual ao certo
+    const text = 'first verse line here\nla la sing it loud now!\nanother verse line here\nla la sing it loud now';
+    expect(chorusFromLyrics(text)).toEqual({ shown: 'la la sing it', hidden: ['loud', 'now'] });
     expect(chorusFromLyrics('one two three four\nfive six seven eight')).toBeNull();
-    expect(chorusFromLyrics('one two three four\none two three four\nfive six seven eight')).toBeNull(); // só 1 fim errado
   });
 });
 

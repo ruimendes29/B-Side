@@ -25,8 +25,7 @@ export interface Settings {
   ptSplit?: boolean;
 }
 
-/** Verso do refrão: `hidden` é o fim certo, `wrong` são fins de outros versos da mesma letra. */
-export interface Chorus { shown: string; hidden: string[]; wrong: string[] }
+export interface Chorus { shown: string; hidden: string[] }
 
 /** Dados do modo por artista, para as categorias. */
 export interface ArtistFacts {

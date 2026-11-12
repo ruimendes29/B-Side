@@ -2,9 +2,10 @@
 // As cores são inventadas (variáveis --cat-* em style.css); as cinco posições têm a mesma cor nos dois modos.
 // Cada lado tem só uma pergunta de "±N anos" (antes havia várias, que eram quase a mesma pergunta)
 // e a letra (roxo) em todos, com peso 2 no sorteio.
+// Com 3 décadas ou menos, a "Década" do lado A dá lugar a "Quem canta?" (quase não havia décadas por onde escolher).
 import type { Mode, Settings, SideKey, Track } from '../types';
 import {
-  AlbumChoiceCategory, AlbumNameCategory, AlbumOrderCategory, ArtistPickCategory, BeforeAfterCategory,
+  AlbumChoiceCategory, ArtistChoiceCategory, AlbumNameCategory, AlbumOrderCategory, ArtistPickCategory, BeforeAfterCategory,
   BeforeYearCategory, Category, type CategoryContext, ChorusCategory, DecadeCategory, ExactYearCategory,
   GroupOrSoloCategory, SingerCategory, TitleCategory, TrackNumberCategory, YearWindowCategory,
 } from './Category';
@@ -24,6 +25,11 @@ const artistPick = new ArtistPickCategory(BLUE);
 const trackNo = new TrackNumberCategory(BLUE);
 const albumName = new AlbumNameCategory(PINK);
 const albumOrder = new AlbumOrderCategory(ORANGE);
+// Instâncias fixas: o sorteio procura a categoria sorteada na lista do lado (indexOf).
+const beforeYear = new BeforeYearCategory(YELLOW);
+const near4 = new YearWindowCategory(4, BLUE);
+const artistChoice = new ArtistChoiceCategory(ORANGE);
+const fewDecades = (ctx: CategoryContext) => ctx.decades.length > 0 && ctx.decades.length <= 3;
 
 export class CategorySide {
   constructor(
@@ -48,7 +54,7 @@ export class CategorySide {
 }
 
 export const SIDES: Record<SideKey, CategorySide> = {
-  beginner: new CategorySide('A', 'Iniciante', [group, new BeforeYearCategory(YELLOW), new YearWindowCategory(4, BLUE), decade, chorus]),
+  beginner: new CategorySide('A', 'Iniciante', (ctx) => [group, beforeYear, near4, fewDecades(ctx) ? artistChoice : decade, chorus]),
   expert: new CategorySide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, chorus]),
 };
 
@@ -68,14 +74,18 @@ export const sideFor = (mode: Mode, side: string): CategorySide | null => {
 };
 
 /** Contexto das categorias a partir das definições. */
-export const contextFor = (s: Settings): CategoryContext => ({
+export const contextFor = (s: Settings, pastArtists: CategoryContext['pastArtists'] = []): CategoryContext => ({
   artistNames: s.artists.map((a) => a.name),
   decades: s.mode === 'decades' ? s.decades : [],
+  pastArtists,
 });
 
 /** Todas as categorias por chave (para o histórico). */
 export function categoryByKey(key: string): Category | undefined {
   const all = [...Object.values(SIDES), ...Object.values(ARTIST_SIDES)]
-    .flatMap((s) => [...s.categories({ artistNames: [], decades: [] }), ...s.categories({ artistNames: ['', ''], decades: [] })]);
+    .flatMap((s) => [
+      ...s.categories({ artistNames: [], decades: [] }),
+      ...s.categories({ artistNames: ['', ''], decades: [1980] }),
+    ]);
   return all.find((c) => c.key === key);
 }
