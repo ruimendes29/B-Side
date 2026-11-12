@@ -11,7 +11,7 @@ import type { Category, CategoryContext, Question } from '../categories/Category
 import { contextFor, sideFor } from '../categories/sides';
 import type { SetStatus } from './useStatus';
 
-export interface CategoryView { key: string; name: string; color: string; ask: string; options?: string[] }
+export interface CategoryView extends Question { key: string; name: string; color: string }
 export interface Clip { startedAt: number; durationMs: number }
 
 const view = (c: Category, q: Question = { ask: c.ask }): CategoryView => ({ key: c.key, name: c.name, color: c.color, ...q });

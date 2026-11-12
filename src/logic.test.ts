@@ -98,7 +98,7 @@ describe('categories', () => {
     expect(SIDES.expert.draw(ctx, track({ chorus }), () => 4.5 / 6)!.key).toBe('chorus');
     expect(SIDES.expert.draw(ctx, track({ chorus: null }), () => 0.99)!.key).not.toBe('chorus');
     const q = SIDES.expert.categories(ctx).find((c) => c.key === 'chorus')!.question(track({ chorus }), ctx);
-    expect(q).toEqual({ ask: '«a b ____ ____»' });
+    expect(q.lyric).toEqual(chorus);
   });
 });
 
@@ -107,6 +107,8 @@ describe('chorus', () => {
     const text = 'first verse line here\nla la sing it loud now!\nanother verse line here\nla la sing it loud now';
     expect(chorusFromLyrics(text)).toEqual({ shown: 'la la sing it', hidden: ['loud', 'now'] });
     expect(chorusFromLyrics('one two three four\nfive six seven eight')).toBeNull();
+    expect(chorusFromLyrics("It's getting hot in here (so hot)\nverse one two three\nIt's getting hot in here (so hot)"))
+      .toEqual({ shown: "It's getting hot", hidden: ['in', 'here'] });
   });
 });
 

@@ -1,6 +1,6 @@
 // Categorias: antes de cada música sorteia-se uma.
 // Cada categoria sabe a pergunta, a cor, se a música tem dados para ela e a resposta certa.
-import type { ArtistFacts, LangKey, Track } from '../types';
+import type { ArtistFacts, Chorus, LangKey, Track } from '../types';
 import { normalize, shuffle } from '../lib/util';
 import { musicBrainz } from '../services/MusicBrainzService';
 import { type CategoryTone, toneVar } from '../theme/colors';
@@ -14,8 +14,8 @@ export interface CategoryContext {
   pastArtists?: { artist: string; lang?: LangKey }[];
 }
 
-/** Pergunta na frente da carta; `options` aparecem por baixo da carta como A, B, C… */
-export interface Question { ask: string; options?: string[] }
+/** Pergunta na frente da carta; `options` e `lyric` aparecem por baixo da carta, no cartão de vidro. */
+export interface Question { ask: string; options?: string[]; lyric?: Chorus }
 
 export abstract class Category {
   constructor(
@@ -102,10 +102,7 @@ export class ChorusCategory extends Category {
   override readonly weight = 2; // o Rui quer a letra mais vezes
   constructor(color: CategoryTone) { super('chorus', 'Completar o refrão', 'Escreve as palavras que faltam no verso do refrão.', color); }
   isAvailable(t: Track) { return Boolean(t.chorus); }
-  question(t: Track) {
-    const c = t.chorus;
-    return { ask: c ? `«${c.shown} ${c.hidden.map(() => '____').join(' ')}»` : this.ask };
-  }
+  question(t: Track) { return { ask: this.ask, lyric: t.chorus ?? undefined }; }
   answer(t: Track) { return t.chorus?.hidden.join(' ') ?? '—'; }
 }
 

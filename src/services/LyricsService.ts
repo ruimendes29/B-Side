@@ -14,8 +14,8 @@ interface LrcResult { artistName: string; instrumental?: boolean; plainLyrics?: 
 
 /** O verso que mais se repete, com as 2-3 últimas palavras escondidas; null sem refrão claro. */
 export function chorusFromLyrics(text: string): Chorus | null {
-  // Sem pontuação no fim: não faz parte da resposta.
-  const lines = text.split('\n').map((l) => l.trim().replace(/[\s,.;:!?…]+$/, '')).filter((l) => wordsOf(l).length >= MIN_WORDS);
+  // Sem coros entre parênteses nem pontuação no fim: não fazem parte da resposta.
+  const lines = text.split('\n').map((l) => l.replace(/\s*[([][^)\]]*[)\]]/g, '').trim().replace(/[\s,.;:!?…]+$/, '')).filter((l) => wordsOf(l).length >= MIN_WORDS);
   if (!lines.length) return null;
   const count = new Map<string, number>();
   for (const l of lines) count.set(normalize(l), (count.get(normalize(l)) || 0) + 1);

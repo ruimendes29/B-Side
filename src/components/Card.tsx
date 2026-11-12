@@ -1,6 +1,6 @@
 import type { Phase, Track } from '../types';
 import type { CategoryView } from '../hooks/useGame';
-import { ChoiceList } from './ChoiceList';
+import { GlassCard } from './GlassCard';
 
 interface Props {
   phase: Phase;
@@ -29,7 +29,8 @@ export function Card({ phase, track, revealed, year, front, answer, spinning, on
   if (phase === 'playing' && front) msg = 'Escrevam a resposta!';
   if (spinning) msg = 'A sortear a categoria…';
   const showAnswer = revealed && year !== undefined && answer;
-  const options = front && !front.rolling ? front.cat.options : undefined;
+  const q = front && !front.rolling ? front.cat : null;
+  const options = q?.options;
 
   return (
     <>
@@ -70,8 +71,9 @@ export function Card({ phase, track, revealed, year, front, answer, spinning, on
           </div>
         </div>
       </div>
-      {options && options.length > 0 && (
-        <ChoiceList options={options} color={front!.cat.color} correct={showAnswer ? options.indexOf(answer.answer) : -1} />
+      {q && (options?.length || q.lyric) && (
+        <GlassCard color={q.color} options={options} lyric={q.lyric} revealed={Boolean(showAnswer)}
+          correct={showAnswer && options ? options.indexOf(answer.answer) : -1} />
       )}
     </>
   );
