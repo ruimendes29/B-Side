@@ -1,5 +1,5 @@
 // Página do telemóvel (/j/CODIGO): entrar na sessão da TV, esperar pelo anfitrião e responder em cada ronda.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { store } from '../lib/util';
 import type { Settings } from '../types';
 import { loadSettings, type UpdateSettings } from '../hooks/useSettings';
@@ -12,6 +12,7 @@ import { ArtistsPanel } from '../components/settings/ArtistsPanel';
 import { LanguagesPanel } from '../components/settings/LanguagesPanel';
 import { ClipPanel } from '../components/settings/ClipPanel';
 import { Whiteboard } from './Whiteboard';
+import { VotePanel } from './VotePanel';
 import { RESULT_DELAY_MS } from './roundCategory';
 import { GearIcon } from '../components/icons';
 import { modals } from '../modals/ModalService';
@@ -103,6 +104,15 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
   const command = (action: Command) => { sendCommand(code, action).catch((err) => setError(message(err))); };
 
   const hostPlaying = !!me && !!view && view.host === me && view.state === 'playing';
+
+  // O meu lugar na classificação: vibra quando muda (curto a subir, longo a descer).
+  const myScore = (me && view?.scores?.[me]) || 0;
+  const myRank = me && view ? 1 + Object.keys(view.players ?? {}).filter((id) => (view.scores?.[id] ?? 0) > myScore).length : 0;
+  const lastRank = useRef(0);
+  useEffect(() => {
+    if (lastRank.current && myRank && myRank !== lastRank.current) navigator.vibrate?.(myRank < lastRank.current ? [20, 40, 20] : 80);
+    lastRank.current = myRank;
+  }, [myRank]);
   // Deixou de ser anfitrião ou o jogo acabou: o modal das definições já não faz sentido.
   useEffect(() => { if (!hostPlaying) modals.closeAll(); }, [hostPlaying]);
 
@@ -152,10 +162,12 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
       const choosing = !!cat?.options?.length && !cat.lyric;
       const open = !round.revealed && !round.locked;
       const picked = choice?.round === round.n ? choice.i : undefined;
+      // Respostas dos outros para votar (as minhas não).
+      const voteTargets = players.filter(([id]) => id !== me && round.answered?.[id]).map(([id, p]) => ({ id, name: p.name }));
       body = (
         <div className="player-round">
           <div className="player-round-head">
-            <span>Ronda {round.n}</span>
+            <span>Ronda {round.n} · {myScore} {myScore === 1 ? 'ponto' : 'pontos'}</span>
             {cat && <span className="player-cat" style={{ '--cat': cat.color } as React.CSSProperties}>{cat.name}</span>}
           </div>
           {cat && <p className="player-ask">{cat.ask}</p>}
@@ -164,6 +176,9 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
               correct={round.revealed && cat.options && round.answer ? cat.options.indexOf(round.answer) : -1}
               picked={picked} onPick={choosing && open ? (i) => void send({ round: round.n, choice: i }) : undefined}
               lyric={cat.lyric && { shown: cat.lyric.shown, hidden: answerWords ?? Array<string>(cat.lyric.blanks).fill('') }} />
+          )}
+          {round.revealed && !choosing && voteTargets.length > 0 && (
+            <VotePanel code={code} me={me} targets={voteTargets} color={cat?.color ?? 'var(--green)'} onError={(e) => setError(message(e))} />
           )}
           {round.revealed ? (
             <div className="player-reveal">

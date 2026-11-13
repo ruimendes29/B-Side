@@ -25,6 +25,12 @@
             "$other": { ".validate": false }
           }
         },
+        "votes": {
+          "$voter": {
+            ".write": "auth != null && auth.uid === $voter && root.child('sessions/' + $code + '/players/' + auth.uid).exists() && root.child('sessions/' + $code + '/round/revealed').val() === true",
+            "$target": { ".validate": "newData.isBoolean() && $target !== $voter && root.child('sessions/' + $code + '/round/answered/' + $target).exists()" }
+          }
+        },
         "commands": {
           "$id": {
             ".write": "auth != null && !data.exists() && root.child('sessions/' + $code + '/host').val() === auth.uid",

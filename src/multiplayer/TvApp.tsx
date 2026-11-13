@@ -14,10 +14,11 @@ import { Controls } from '../components/Controls';
 import { Progress } from '../components/Progress';
 import { History } from '../components/History';
 import { GlassCard } from '../components/GlassCard';
-import { RESULT_DELAY_MS, type RoundCategory, publicCategory } from './roundCategory';
+import { RESULT_DELAY_MS, type RoundCategory, publicCategory, roundWinners, tally } from './roundCategory';
+import { Leaderboard } from './Leaderboard';
 import {
-  type Answer, type Player, type Session, createSession, endSession, joinUrl, lockRound, onCommand, revealRound, setHost,
-  setState, startRound, watchSession,
+  type Answer, type Player, type Session, awardPoints, createSession, endSession, joinUrl, lockRound, onCommand, resetScores,
+  revealRound, setHost, setState, startRound, watchSession,
 } from './session';
 
 const EMPTY_GRACE_MS = 60_000; // um telemóvel com o ecrã bloqueado sai por momentos: não apagar logo
@@ -59,8 +60,9 @@ function Lobby({ code, players, host, sound, onSound, error }: {
 interface Solution { year: number | null; artist: string; title: string; category?: { name: string; color: string; answer: string } }
 
 /** Quadro de cada jogador com o nome por baixo e, a aparecer devagar, a resposta certa. */
-function Results({ players, answers, round, cat, solution }: {
+function Results({ players, answers, round, cat, solution, votes }: {
   players: [string, Player][]; answers: Record<string, Answer>; round: number; cat: RoundCategory | null; solution?: Solution;
+  votes?: Session['votes'];
 }) {
   const answerOf = (id: string) => (answers[id]?.round === round ? answers[id] : undefined);
   // Categorias com opções: em vez dos quadros, as opções com quem escolheu cada uma.
@@ -82,14 +84,19 @@ function Results({ players, answers, round, cat, solution }: {
       ) : <div className="tv-results-grid" style={{ '--cols': cols, '--rows': rows } as React.CSSProperties}>
         {players.map(([id, p]) => {
           const a = answerOf(id);
+          // Depois de revelar, os telemóveis votam: aqui vê-se a contagem a mudar.
+          const t = solution && a ? tally(id, votes) : null;
           return (
             <figure key={id}>
-              <div className={`board-shot${a ? '' : ' none'}`}>
+              <div className={`board-shot${a ? '' : ' none'}${t && t.approve + t.reject > 0 ? (t.ok ? ' approved' : ' rejected') : ''}`}>
                 {a?.drawing?.startsWith('data:image/png;base64,') && <img src={a.drawing} alt={`Desenho de ${p.name}`} />}
                 {a?.text && <p>{a.text}</p>}
                 {!a && <p>Sem resposta</p>}
               </div>
-              <figcaption>{p.name}</figcaption>
+              <figcaption>
+                {p.name}
+                {t && <span className="vote-count"><span className="yes">✓ {t.approve}</span> <span className="no">✗ {t.reject}</span></span>}
+              </figcaption>
             </figure>
           );
         })}
@@ -151,7 +158,7 @@ export default function TvApp() {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
   useEffect(() => (code ? onCommand(code, (action) => {
-    if (action === 'start') { void setState(code, 'playing'); actionsRef.current.next(); }
+    if (action === 'start') { void resetScores(code); void setState(code, 'playing'); actionsRef.current.next(); }
     else if (action in actionsRef.current) actionsRef.current[action as 'play' | 'reveal' | 'next' | 'replay']();
   }) : undefined), [code]);
 
@@ -178,10 +185,23 @@ export default function TvApp() {
     return () => clearTimeout(timer);
   }, [code, players.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pontos da ronda que acabou: dados quando começa a seguinte (até lá ainda se pode votar).
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const awarded = useRef(0);
+  function awardPrevious() {
+    const s = sessionRef.current;
+    const prev = s?.round;
+    if (!code || !prev?.revealed || awarded.current >= prev.n) return;
+    awarded.current = prev.n; // uma vez por ronda (o StrictMode corre os efeitos duas vezes)
+    void awardPoints(code, roundWinners(prev, s?.answers, s?.votes));
+  }
+
   // Nova ronda: a categoria já ficou escolhida antes de o número da ronda subir (useGame).
   useEffect(() => {
     resultsRef.current = false;
     setResults(false);
+    awardPrevious();
     if (!code || !game.round) return;
     const cat = game.front && !game.front.rolling ? publicCategory(game.front.cat) : null;
     void startRound(code, { n: game.round, cat, revealed: false });
@@ -191,11 +211,22 @@ export default function TvApp() {
   useEffect(() => {
     const t = game.track;
     if (!code || !game.round || !game.revealed || game.year === undefined || !t || answerText === '…') return;
-    void revealRound(code, { revealed: true, answer: answerText ?? null, year: game.year, title: t.title, artist: t.artists.join(', ') });
+    // Quem respondeu por escrito ou a desenhar: os outros votam nessas respostas.
+    const s = sessionRef.current;
+    const answeredIds = Object.entries(s?.answers ?? {})
+      .filter(([, a]) => a.round === game.round && (a.text || a.drawing))
+      .map(([id]) => [id, true] as const);
+    void revealRound(code, {
+      revealed: true, answer: answerText ?? null, year: game.year, title: t.title, artist: t.artists.join(', '),
+      answered: answeredIds.length ? Object.fromEntries(answeredIds) : null,
+    });
   }, [code, game.round, game.revealed, game.year, answerText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const round = session?.round?.n === game.round ? session.round : undefined;
   const answers = session?.answers ?? {};
+  // Classificação: pontos guardados + os desta ronda enquanto se vota (ainda podem mudar).
+  const pending = new Set(round && awarded.current < round.n ? roundWinners(round, answers, session?.votes) : []);
+  const board = players.map(([id, p]) => ({ id, name: p.name, score: (session?.scores?.[id] ?? 0) + (pending.has(id) ? 1 : 0) }));
   const answered = round ? players.filter(([id]) => answers[id]?.round === round.n).length : 0;
   const lobby = session?.state !== 'playing';
   const solution: Solution | undefined = game.revealed && game.year !== undefined && game.track && answerText !== '…'
@@ -207,6 +238,7 @@ export default function TvApp() {
 
   return (
     <div className="tv">
+      <aside className="tv-left"><Leaderboard rows={board} /></aside>
       <main className="tv-main">
         <header className="tv-top">
           <span className="brand-name">B-<b>Side</b></span>
@@ -237,7 +269,7 @@ export default function TvApp() {
         </div>
       )}
       {!lobby && results && round && (
-        <div className="tv-overlay"><Results players={players} answers={answers} round={round.n} cat={round.cat} solution={solution} /></div>
+        <div className="tv-overlay"><Results players={players} answers={answers} round={round.n} cat={round.cat} solution={solution} votes={session?.votes} /></div>
       )}
     </div>
   );

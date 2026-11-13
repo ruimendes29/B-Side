@@ -168,3 +168,20 @@ describe('title decoys', () => {
     expect(decoyPrompt({ title: 'Chuva', artists: ['Mariza'], year: 2004, lang: 'pt' })).toContain('European Portuguese');
   });
 });
+
+describe('scoring', () => {
+  it('counts approvals against rejections, ignoring self-votes', async () => {
+    const { tally, roundWinners } = await import('./multiplayer/roundCategory');
+    const votes = { a: { b: true, c: false, a: true }, b: { c: false }, c: { b: true } };
+    expect(tally('b', votes)).toEqual({ approve: 2, reject: 0, ok: true });
+    expect(tally('c', votes)).toEqual({ approve: 0, reject: 2, ok: false });
+    expect(tally('a', votes).ok).toBe(false); // ninguém votou: não ganha
+    const cat = { name: 'x', color: 'c', ask: 'q' };
+    const round = { n: 2, revealed: true, cat, answer: 'Y', answered: { b: true, c: true } as Record<string, true> };
+    expect(roundWinners(round, {}, votes)).toEqual(['b']);
+    expect(roundWinners({ ...round, revealed: false }, {}, votes)).toEqual([]);
+    const choice = { ...round, cat: { ...cat, options: ['X', 'Y', 'Z'] } };
+    const answers = { a: { round: 2, choice: 1 }, b: { round: 2, choice: 0 }, c: { round: 1, choice: 1 } };
+    expect(roundWinners(choice, answers, votes)).toEqual(['a']);
+  });
+});

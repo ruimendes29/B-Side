@@ -586,9 +586,27 @@ kbd {
 /* ---------- TV: tudo no ecrã, sem scroll ---------- */
 .tv {
   height: 100vh; height: 100dvh; overflow: hidden;
-  display: grid; grid-template-columns: minmax(0, 1fr) min(300px, 22vw);
+  display: grid; grid-template-columns: min(280px, 21vw) minmax(0, 1fr) min(300px, 22vw);
   background: var(--bg);
 }
+/* Classificação (à esquerda) */
+.tv-left { min-height: 0; overflow-y: auto; border-right: 1px solid rgba(255, 255, 255, .08); }
+.tv-board { padding: 2vh 8px; }
+.tv-board h2 { margin: 0 0 1.5vh; font-size: min(2.6vh, 20px); color: var(--sub); text-transform: uppercase; letter-spacing: .08em; }
+.tv-board ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.tv-board li {
+  display: flex; align-items: center; gap: 6px; padding: 1vh 8px; border-radius: 14px;
+  background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  font-size: min(2.6vh, 20px); font-weight: 700;
+}
+.tv-board li:first-child { border-color: rgba(255, 210, 80, .45); box-shadow: 0 0 18px rgba(255, 210, 80, .15); }
+.lb-pos { width: 1.1em; color: var(--muted); font-weight: 800; text-align: center; }
+.lb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-crown { font-size: 1.1em; animation: crown-in .5s cubic-bezier(.3, 1.6, .5, 1); }
+.lb-score { min-width: 1.6em; text-align: right; color: var(--green); font-size: 1.15em; display: inline-block; }
+@keyframes crown-in { from { transform: scale(0) rotate(-30deg); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lb-crown { animation: none; } }
 .tv-main { display: flex; flex-direction: column; min-height: 0; padding: 2vh 2vw; box-sizing: border-box; }
 .tv-top { display: flex; align-items: center; gap: 2vw; }
 .tv-round { font-size: min(4vh, 32px); font-weight: 900; }
@@ -652,6 +670,12 @@ kbd {
 .board-shot.none { background: rgba(255, 255, 255, .08); }
 .board-shot.none p { color: var(--muted); font-weight: 600; font-size: min(2.2vh, 18px); }
 .tv-results figcaption { text-align: center; font-size: min(2.6vh, 22px); font-weight: 800; }
+.vote-count { margin-left: .6em; font-size: .85em; }
+.vote-count .yes { color: var(--green); }
+.vote-count .no { color: #ff6b6b; }
+.board-shot { transition: box-shadow .3s; }
+.board-shot.approved { box-shadow: 0 0 0 4px var(--green); }
+.board-shot.rejected { box-shadow: 0 0 0 4px #ff6b6b; }
 /* A resposta certa aparece sozinha, devagar, depois de se verem os quadros. */
 .tv-solution {
   display: flex; flex-direction: column; align-items: center; gap: 1vh; text-align: center;
@@ -674,3 +698,30 @@ kbd {
 }
 .icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
 .modal .host-settings { gap: 12px; }
+
+/* Votação no telemóvel: mesmo vidro das opções */
+.vote-glass { gap: 8px; }
+.vote-head { display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 2px; font-weight: 700; }
+.vote-head small { color: var(--muted); font-weight: 600; margin-left: 4px; }
+.vote-all { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.vote-btn {
+  padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .08); color: var(--text); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: transform .1s, background .2s;
+}
+.vote-btn:active, .vote-icon:active { transform: scale(.95); }
+.vote-btn.yes { color: var(--green); }
+.vote-btn.no { color: #ff6b6b; }
+.vote-glass li { justify-content: space-between; padding: 8px 8px 8px 12px; }
+.vote-glass li.voted-yes { box-shadow: inset 0 0 0 1.5px var(--green); }
+.vote-glass li.voted-no { box-shadow: inset 0 0 0 1.5px #ff6b6b; opacity: .85; }
+.vote-name { font-size: 15px; padding: 4px 12px; }
+.vote-actions { display: flex; gap: 8px; }
+.vote-icon {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .08); color: var(--text); font-size: 20px; font-weight: 800; cursor: pointer;
+  display: grid; place-items: center; -webkit-tap-highlight-color: transparent; transition: transform .1s, background .2s, color .2s;
+}
+.vote-icon.yes[aria-pressed="true"] { background: var(--green); color: #000; border-color: transparent; }
+.vote-icon.no[aria-pressed="true"] { background: #ff6b6b; color: #000; border-color: transparent; }
+.vote-icon:focus-visible, .vote-btn:focus-visible { outline: 2px solid var(--cat); outline-offset: 2px; }

@@ -7,7 +7,7 @@ import {
   browserLocalPersistence, connectAuthEmulator, indexedDBLocalPersistence, inMemoryPersistence, initializeAuth, signInAnonymously,
 } from 'firebase/auth';
 import {
-  connectDatabaseEmulator, get, getDatabase, onChildAdded, onDisconnect, onValue, push, ref, remove, serverTimestamp, set, update,
+  connectDatabaseEmulator, get, getDatabase, increment, onChildAdded, onDisconnect, onValue, push, ref, remove, serverTimestamp, set, update,
 } from 'firebase/database';
 import type { Settings } from '../types';
 import type { RoundCategory } from './roundCategory';
@@ -33,6 +33,8 @@ export interface RoundInfo {
   year?: number | null;
   title?: string;
   artist?: string;
+  /** Quem respondeu por escrito/desenho (os outros votam nessas respostas depois de revelar). */
+  answered?: Record<string, true> | null;
 }
 
 /** `choice`: índice da opção escolhida, nas categorias com opções (aí não há quadro). */
@@ -47,6 +49,10 @@ export interface Session {
   players?: Record<string, Player>;
   round?: RoundInfo;
   answers?: Record<string, Answer>;
+  /** Pontos de cada jogador (só a TV escreve). Sem entrada = 0. */
+  scores?: Record<string, number>;
+  /** votes[quemVota][emQuem] = true (aprova) / false (rejeita), da ronda atual. */
+  votes?: Record<string, Record<string, boolean>>;
 }
 
 export type Command = 'start' | 'play' | 'reveal' | 'next' | 'replay';
@@ -102,8 +108,13 @@ export const onCommand = (code: string, cb: (action: Command) => void) =>
 
 export const setHost = (code: string, host: string | null) => set(at(code, 'host'), host);
 export const setState = (code: string, state: Session['state']) => set(at(code, 'state'), state);
-/** Nova ronda: apaga as respostas da anterior. */
-export const startRound = (code: string, round: RoundInfo) => update(at(code), { round, answers: null });
+/** Nova ronda: apaga as respostas e os votos da anterior. */
+export const startRound = (code: string, round: RoundInfo) => update(at(code), { round, answers: null, votes: null });
+/** Jogo novo: todos com 0 pontos. */
+export const resetScores = (code: string) => set(at(code, 'scores'), null);
+/** Um ponto a cada jogador da lista. */
+export const awardPoints = (code: string, uids: string[]) =>
+  uids.length ? update(at(code, 'scores'), Object.fromEntries(uids.map((u) => [u, increment(1)]))) : Promise.resolve();
 export const revealRound = (code: string, patch: Partial<RoundInfo>) => update(at(code, 'round'), patch);
 export const lockRound = (code: string) => update(at(code, 'round'), { locked: true });
 
@@ -132,7 +143,7 @@ export function watchPlayerView(code: string, cb: (s: Omit<Session, 'answers'> |
   const emit = () => cb(exists ? { ...(view as Session) } : null);
   const subs = [
     onValue(at(code, 'tv'), (s) => { exists = s.exists(); emit(); }),
-    ...(['state', 'host', 'settings', 'players', 'round'] as const).map((key) =>
+    ...(['state', 'host', 'settings', 'players', 'round', 'scores'] as const).map((key) =>
       onValue(at(code, key), (s) => { (view as Record<string, unknown>)[key] = s.val() ?? undefined; emit(); })),
   ];
   return () => subs.forEach((off) => off());
@@ -142,3 +153,9 @@ export function watchPlayerView(code: string, cb: (s: Omit<Session, 'answers'> |
 export const setSessionSettings = (code: string, settings: Settings) => set(at(code, 'settings'), plain(settings));
 export const sendCommand = (code: string, action: Command) => push(at(code, 'commands'), { action });
 export const submitAnswer = async (code: string, answer: Answer) => set(at(code, `answers/${await signIn()}`), answer);
+/** Aprovar (true) ou rejeitar (false) as respostas de outros jogadores, de uma vez. */
+export const castVotes = async (code: string, votes: Record<string, boolean>) =>
+  update(at(code, `votes/${await signIn()}`), votes);
+/** Os meus votos desta ronda. */
+export const watchMyVotes = (code: string, me: string, cb: (v: Record<string, boolean>) => void) =>
+  onValue(at(code, `votes/${me}`), (s) => cb(s.val() ?? {}));
