@@ -1,7 +1,7 @@
 // Página da TV (/tv). Cabe toda no ecrã, sem scroll (o comando da TV mal deixa fazer scroll):
 // carta e controlos ao centro, músicas já tocadas numa coluna estreita à direita.
 // As definições vêm da sessão no Firebase e quem as muda é o anfitrião, no telemóvel.
-// Antes de revelar a resposta mostra "Results are in!" com o quadro de cada jogador.
+// Ao revelar mostra "Results are in!" com o quadro de cada jogador e, logo a seguir, a resposta certa por baixo.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { useGame } from '../hooks/useGame';
@@ -54,8 +54,13 @@ function Lobby({ code, players, host, sound, onSound, error }: {
   );
 }
 
-/** Quadro de cada jogador por cima e o nome por baixo, tudo no ecrã. */
-function Results({ players, answers, round }: { players: [string, Player][]; answers: Record<string, Answer>; round: number }) {
+/** Resposta certa da ronda, por baixo dos quadros dos jogadores. */
+interface Solution { year: number | null; artist: string; title: string; category?: { name: string; color: string; answer: string } }
+
+/** Quadro de cada jogador com o nome por baixo e, a aparecer devagar, a resposta certa. */
+function Results({ players, answers, round, solution }: {
+  players: [string, Player][]; answers: Record<string, Answer>; round: number; solution?: Solution;
+}) {
   const cols = players.length <= 4 ? Math.max(players.length, 1) : players.length <= 8 ? 4 : 5;
   const rows = Math.ceil(players.length / cols);
   return (
@@ -76,7 +81,17 @@ function Results({ players, answers, round }: { players: [string, Player][]; ans
           );
         })}
       </div>
-      <p className="hint">Carrega OK para ver a resposta certa</p>
+      {solution && (
+        <div className="tv-solution" role="status">
+          {solution.category && (
+            <p className="tv-solution-cat" style={{ '--cat': solution.category.color } as React.CSSProperties}>
+              <span>{solution.category.name}</span> <b>{solution.category.answer}</b>
+            </p>
+          )}
+          <p><b className="tv-solution-year">{solution.year ?? '????'}</b> {solution.artist} · <i>{solution.title}</i></p>
+        </div>
+      )}
+      <p className="hint">Carrega OK para fechar</p>
     </section>
   );
 }
@@ -101,19 +116,19 @@ export default function TvApp() {
 
   const players = Object.entries(session?.players ?? {}).sort((a, b) => a[1].joinedAt - b[1].joinedAt);
 
-  // Primeiro OK: "Results are in!" (e acabam as respostas). Segundo OK: a carta vira com a resposta certa.
+  // OK: acabam as respostas, a carta vira e aparece "Results are in!" com a resposta certa. Outro OK fecha.
   const resultsRef = useRef(false);
   function reveal() {
     const g = gameRef.current;
-    if (!g.track || g.revealed || g.phase === 'loading' || !code) return;
-    if (!resultsRef.current) {
-      resultsRef.current = true;
-      setResults(true);
-      void lockRound(code);
+    if (resultsRef.current) {
+      resultsRef.current = false;
+      setResults(false);
       return;
     }
-    resultsRef.current = false;
-    setResults(false);
+    if (!g.track || g.revealed || g.phase === 'loading' || !code) return;
+    resultsRef.current = true;
+    setResults(true);
+    void lockRound(code);
     g.actions.reveal();
   }
   const actions = { ...game.actions, reveal };
@@ -170,6 +185,12 @@ export default function TvApp() {
   const answers = session?.answers ?? {};
   const answered = round ? players.filter(([id]) => answers[id]?.round === round.n).length : 0;
   const lobby = session?.state !== 'playing';
+  const solution: Solution | undefined = game.revealed && game.year !== undefined && game.track && answerText !== '…'
+    ? {
+      year: game.year, artist: game.track.artists.join(', '), title: game.track.title,
+      category: game.answer ? { name: game.answer.name, color: game.answer.color, answer: game.answer.answer } : undefined,
+    }
+    : undefined;
 
   return (
     <div className="tv">
@@ -203,7 +224,7 @@ export default function TvApp() {
         </div>
       )}
       {!lobby && results && round && (
-        <div className="tv-overlay"><Results players={players} answers={answers} round={round.n} /></div>
+        <div className="tv-overlay"><Results players={players} answers={answers} round={round.n} solution={solution} /></div>
       )}
     </div>
   );

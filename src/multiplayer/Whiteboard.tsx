@@ -28,8 +28,12 @@ export function Whiteboard({ round, onSubmit, sent }: Props) {
   const last = useRef<Point | null>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
-  // No modo teclado, abre logo o teclado do telemóvel.
-  useEffect(() => { if (mode === 'type') textarea.current?.focus(); }, [mode]);
+  // No modo teclado, abre logo o teclado do telemóvel; ao voltar ao dedo, larga o campo de texto
+  // (senão fica com o cursor e o teclado abertos por cima do desenho).
+  useEffect(() => {
+    if (mode === 'type') textarea.current?.focus();
+    else textarea.current?.blur();
+  }, [mode]);
 
   // O canvas tem a resolução real do ecrã (devicePixelRatio) para o traço não ficar desfocado.
   useLayoutEffect(() => {
@@ -103,6 +107,7 @@ export function Whiteboard({ round, onSubmit, sent }: Props) {
           aria-label="Quadro para desenhar a resposta"
           onPointerDown={(e) => {
             if (mode !== 'draw') return;
+            e.preventDefault(); // sem seleção de texto nem foco a começar no quadro
             e.currentTarget.setPointerCapture(e.pointerId);
             const p = pointOf(e);
             line(p, { x: p.x + 0.01, y: p.y }); // um toque faz um ponto
@@ -117,6 +122,7 @@ export function Whiteboard({ round, onSubmit, sent }: Props) {
           }}
           onPointerUp={() => { last.current = null; }}
           onPointerCancel={() => { last.current = null; }}
+          onLostPointerCapture={() => { last.current = null; }}
         />
         {/* O texto fica por cima do desenho, no mesmo quadro. */}
         <textarea

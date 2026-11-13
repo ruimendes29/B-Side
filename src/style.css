@@ -550,7 +550,12 @@ kbd {
   border-radius: 16px; background: #fff; overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
 }
+/* O dedo a sair e a voltar a entrar no quadro não pode selecionar texto, abrir o menu do toque longo
+   nem fazer scroll: tudo isto deixava o quadro "selecionado". */
+.board-wrap { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.board.mode-draw { touch-action: none; }
 .board canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.board.mode-type textarea { -webkit-user-select: text; user-select: text; }
 .board textarea {
   position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box;
   padding: 16px; border: 0; resize: none; background: transparent; outline: none;
@@ -606,26 +611,45 @@ kbd {
 }
 .tv-results {
   height: 100%; box-sizing: border-box; padding: 4vh 4vw;
-  display: flex; flex-direction: column; align-items: center; gap: 3vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh;
 }
-.tv-results h1 { margin: 0; font-size: min(8vh, 64px); font-weight: 900; color: var(--green); }
+.tv-results h1 { margin: 0; font-size: min(7vh, 56px); font-weight: 900; color: var(--green); }
+/* Quadros pequenos (4:3, como o do telemóvel): cabem todos em ~45vh e sobra espaço para a resposta. */
 .tv-results-grid {
-  flex: 1; min-height: 0; width: 100%;
-  display: grid; gap: 2.5vh 2vw;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+  --h: min(26vh, calc(45vh / var(--rows) - 5vh));
+  --w: min(calc(var(--h) * 4 / 3), calc((92vw - (var(--cols) - 1) * 2vw) / var(--cols)));
+  display: grid; gap: 2vh 2vw; justify-content: center;
+  grid-template-columns: repeat(var(--cols), var(--w));
 }
-.tv-results figure { margin: 0; min-height: 0; display: flex; flex-direction: column; gap: 1vh; }
-.board-shot { position: relative; flex: 1; min-height: 0; border-radius: 14px; background: #fff; overflow: hidden; }
+.tv-results figure { margin: 0; display: flex; flex-direction: column; gap: .8vh; }
+.board-shot { position: relative; aspect-ratio: 4 / 3; border-radius: 12px; background: #fff; overflow: hidden; }
 .board-shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .board-shot p {
-  position: relative; margin: 0; padding: 1.5vh 1vw;
-  color: #111; font-size: min(4vh, 34px); font-weight: 800; line-height: 1.2; overflow-wrap: anywhere;
+  position: relative; margin: 0; padding: 1.2vh 1vw;
+  color: #111; font-size: min(3vh, 26px); font-weight: 800; line-height: 1.2; overflow-wrap: anywhere;
 }
 .board-shot.none { background: rgba(255, 255, 255, .08); }
-.board-shot.none p { color: var(--muted); font-weight: 600; font-size: min(2.6vh, 20px); }
-.tv-results figcaption { text-align: center; font-size: min(3vh, 24px); font-weight: 800; }
+.board-shot.none p { color: var(--muted); font-weight: 600; font-size: min(2.2vh, 18px); }
+.tv-results figcaption { text-align: center; font-size: min(2.6vh, 22px); font-weight: 800; }
+/* A resposta certa aparece sozinha, devagar, depois de se verem os quadros. */
+.tv-solution {
+  display: flex; flex-direction: column; align-items: center; gap: 1vh; text-align: center;
+  font-size: min(3.4vh, 28px); animation: solution-in .9s ease 1.2s both;
+}
+.tv-solution p { margin: 0; }
+.tv-solution-year { color: var(--green); font-size: min(8vh, 64px); font-weight: 900; vertical-align: middle; margin-right: .3em; }
+.tv-solution-cat { --cat: var(--green); }
+.tv-solution-cat span { color: var(--cat); font-weight: 700; }
+.tv-solution-cat b { font-size: 1.3em; }
+@keyframes solution-in { from { opacity: 0; transform: translateY(1.5vh); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tv-solution { animation-duration: .01s; } }
 
 /* Definições do anfitrião no telemóvel */
 .host-settings { display: flex; flex-direction: column; gap: 10px; width: 100%; text-align: left; }
-.host-settings-toggle summary { cursor: pointer; font-weight: 700; color: var(--sub); padding: 8px 0; }
+.player-top .pill { margin-left: auto; }
+.icon-btn {
+  display: grid; place-items: center; width: 40px; height: 40px; margin-left: 10px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer; background: var(--elev-3); color: var(--text);
+}
+.icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.modal .host-settings { gap: 12px; }

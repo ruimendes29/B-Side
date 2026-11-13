@@ -12,6 +12,8 @@ import { ArtistsPanel } from '../components/settings/ArtistsPanel';
 import { LanguagesPanel } from '../components/settings/LanguagesPanel';
 import { ClipPanel } from '../components/settings/ClipPanel';
 import { Whiteboard } from './Whiteboard';
+import { GearIcon } from '../components/icons';
+import { modals } from '../modals/ModalService';
 import {
   type Answer, type Command, type Session, isCode, joinSession, normalizeCode, sendCommand, setSessionSettings, submitAnswer,
   watchPlayerView,
@@ -20,13 +22,8 @@ import {
 type View = Omit<Session, 'answers'>;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** As definições do jogo, guardadas na sessão: só o anfitrião as vê e muda (os mesmos painéis do site). */
-function HostSettings({ code, saved, setStatus }: { code: string; saved?: Partial<Settings>; setStatus: SetStatus }) {
-  const settings = loadSettings(saved ?? {});
-  const update: UpdateSettings = (patch) => {
-    const next = { ...settings, ...(typeof patch === 'function' ? patch(settings) : patch) };
-    setSessionSettings(code, next).catch((e) => setStatus(message(e), 'error'));
-  };
+/** Os mesmos painéis de definições do site. */
+function SettingsPanels({ settings, update, setStatus }: { settings: Settings; update: UpdateSettings; setStatus: SetStatus }) {
   return (
     <div className="host-settings">
       <CategoriesPanel settings={settings} update={update} />
@@ -37,6 +34,29 @@ function HostSettings({ code, saved, setStatus }: { code: string; saved?: Partia
       <ClipPanel settings={settings} update={update} />
     </div>
   );
+}
+
+const patched = (s: Settings, patch: Parameters<UpdateSettings>[0]): Settings => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) });
+
+/** Antes do jogo: as definições da sessão mudam logo (só o anfitrião as vê). */
+function HostSettings({ code, saved, setStatus }: { code: string; saved?: Partial<Settings>; setStatus: SetStatus }) {
+  const settings = loadSettings(saved ?? {});
+  const update: UpdateSettings = (patch) => {
+    setSessionSettings(code, patched(settings, patch)).catch((e) => setStatus(message(e), 'error'));
+  };
+  return <SettingsPanels settings={settings} update={update} setStatus={setStatus} />;
+}
+
+/** Durante o jogo: as definições abrem num modal e só vão para a sessão ao guardar. */
+function openGameSettings(code: string, saved: Partial<Settings> | undefined, setStatus: SetStatus) {
+  void modals.open({
+    title: 'Definições do jogo',
+    value: loadSettings(saved ?? {}),
+    render: (draft, setDraft) => (
+      <SettingsPanels settings={draft} update={(patch) => setDraft((d) => patched(d, patch))} setStatus={setStatus} />
+    ),
+    onSave: (s) => setSessionSettings(code, s),
+  });
 }
 
 export default function PlayerApp({ initialCode }: { initialCode: string }) {
@@ -78,6 +98,10 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
   }
 
   const command = (action: Command) => { sendCommand(code, action).catch((err) => setError(message(err))); };
+
+  const hostPlaying = !!me && !!view && view.host === me && view.state === 'playing';
+  // Deixou de ser anfitrião ou o jogo acabou: o modal das definições já não faz sentido.
+  useEffect(() => { if (!hostPlaying) modals.closeAll(); }, [hostPlaying]);
 
   let body: React.ReactNode;
   if (!me) {
@@ -159,10 +183,6 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
             <button type="button" className="btn btn-outline" onClick={() => command('reveal')}>Revelar</button>
             <button type="button" className="btn btn-outline" onClick={() => command('next')}>Próxima</button>
           </div>
-          <details className="host-settings-toggle">
-            <summary>Definições</summary>
-            <HostSettings code={code} saved={view.settings} setStatus={setStatus} />
-          </details>
         </>
       );
     }
@@ -170,7 +190,14 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
 
   return (
     <div className="player-app">
-      <header className="player-top"><span className="brand-name">B-<b>Side</b></span>{me && <span className="pill">{code}</span>}</header>
+      <header className="player-top">
+        <span className="brand-name">B-<b>Side</b></span>
+        {me && <span className="pill">{code}</span>}
+        {hostPlaying && (
+          <button type="button" className="icon-btn" aria-label="Definições do jogo"
+            onClick={() => openGameSettings(code, view?.settings ?? undefined, setStatus)}><GearIcon /></button>
+        )}
+      </header>
       {body}
       {status.text && <p className={`status${status.kind === 'error' ? ' error' : ''}`} role="status">{status.text}</p>}
     </div>
