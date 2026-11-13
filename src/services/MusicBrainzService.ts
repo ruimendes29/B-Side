@@ -24,7 +24,7 @@ interface MbRecording {
   'artist-credit'?: { name: string; joinphrase?: string }[];
   releases?: MbRelease[];
 }
-interface MbArtist { id: string; name: string; score: number; country?: string; type?: string; aliases?: { name: string }[] }
+interface MbArtist { id: string; name: string; score: number; country?: string; type?: string; aliases?: { name: string }[]; 'life-span'?: { begin?: string } }
 
 export class MusicBrainzService {
   // O MusicBrainz aceita no máximo ~1 pedido por segundo.
@@ -117,8 +117,11 @@ export class MusicBrainzService {
   // A Deezer mistura álbuns de estúdio com edições de aniversário, ao vivo e compilações, e muitas
   // vezes dá o ano da reedição. O MusicBrainz separa-os (tipos secundários) e tem a data original.
 
-  /** Identificador do artista no MusicBrainz, ou null. */
-  async artistId(name: string) { return (await this.findArtist(name))?.id ?? null; }
+  /** Artista no MusicBrainz: identificador, ano de nascimento (ou de fundação, num grupo) e tipo. Null se não o conhecer. */
+  async artist(name: string) {
+    const a = await this.findArtist(name);
+    return a && { id: a.id, born: parseInt(a['life-span']?.begin?.slice(0, 4) || '', 10) || null, type: a.type || null };
+  }
 
   /** Álbuns de estúdio por ordem (sem ao vivo nem compilações). */
   async studioAlbums(mbid: string): Promise<StudioAlbum[]> {

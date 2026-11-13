@@ -3,7 +3,6 @@
 // a ronda atual e as respostas dessa ronda. A sessão é apagada quando a TV se desliga (onDisconnect)
 // ou quando fica sem jogadores (a TV apaga-a, ver TvApp); cada jogador sai quando fecha o separador.
 // A configuração web do Firebase não é secreta: o acesso é controlado por database.rules.json.
-import { initializeApp } from 'firebase/app';
 import {
   browserLocalPersistence, connectAuthEmulator, indexedDBLocalPersistence, inMemoryPersistence, initializeAuth, signInAnonymously,
 } from 'firebase/auth';
@@ -12,21 +11,8 @@ import {
 } from 'firebase/database';
 import type { Settings } from '../types';
 import type { RoundCategory } from './roundCategory';
+import { app, emulator } from './firebaseApp';
 
-// Testes locais: `?emulator` na página usa os emuladores do Firebase (npm run emulators), num projeto
-// demo- que nunca fala com a Google. Aí o login fica só em memória, para a TV e vários "telemóveis"
-// poderem ser separadores do mesmo browser.
-const emulator = new URLSearchParams(location.search).has('emulator');
-
-const app = initializeApp(emulator
-  ? { apiKey: 'demo', projectId: 'demo-b-side', databaseURL: 'https://demo-b-side-default-rtdb.firebaseio.com' }
-  : {
-    apiKey: 'AIzaSyCFPbBMp-YG-59H0b32DeNby6bvqRwXXBk',
-    authDomain: 'b-side-c1322.firebaseapp.com',
-    databaseURL: 'https://b-side-c1322-default-rtdb.europe-west1.firebasedatabase.app',
-    projectId: 'b-side-c1322',
-    appId: '1:483519232221:web:42a6a6f94a52ed3ab0c334',
-  });
 const auth = initializeAuth(app, { persistence: emulator ? inMemoryPersistence : [indexedDBLocalPersistence, browserLocalPersistence] });
 const db = getDatabase(app);
 
@@ -49,7 +35,8 @@ export interface RoundInfo {
   artist?: string;
 }
 
-export interface Answer { round: number; text?: string; drawing?: string }
+/** `choice`: índice da opção escolhida, nas categorias com opções (aí não há quadro). */
+export interface Answer { round: number; text?: string; drawing?: string; choice?: number }
 
 export interface Session {
   tv: string;

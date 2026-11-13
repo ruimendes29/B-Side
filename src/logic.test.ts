@@ -4,8 +4,9 @@ import { languages } from './languages/LanguageService';
 import { addShare, languageShares, removeShare, setShare } from './lib/shares';
 import { BlockList } from './services/BlockList';
 import { chorusFromLyrics } from './services/LyricsService';
+import { cleanDecoys, decoyPrompt } from './services/TitleDecoyService';
 import { ARTIST_SIDES, SIDES } from './categories/sides';
-import { BeforeYearCategory, DecadeCategory, YearWindowCategory, looksLikeSeveral, pivotYear } from './categories/Category';
+import { AgeCategory, BeforeYearCategory, HalfDecadeCategory, PopularityCategory, YearWindowCategory, pivotYear } from './categories/Category';
 
 const track = (over: Partial<Track> = {}): Track => ({
   id: 'dz1', deezerId: 1, title: 'Song', artists: ['Artist'], year: 1987, yearPromise: Promise.resolve(1987), preview: '', ...over,
@@ -49,19 +50,36 @@ describe('BlockList', () => {
 describe('categories', () => {
   it('answers year categories', () => {
     expect(new YearWindowCategory(3, 'purple').answer(track())).toBe('Vale de 1984 a 1990');
-    expect(new DecadeCategory('orange').answer(track({ year: 2004 }))).toBe('Anos 2000');
-    expect(new DecadeCategory('orange').answer(track({ year: null }))).toBe('Ano desconhecido');
-    expect(looksLikeSeveral('Earth, Wind & Fire', 'September')).toBe(true);
+    expect(new HalfDecadeCategory('blue').answer(track({ year: 2004 }))).toBe('Início dos anos 2000 (2004)');
+    expect(new HalfDecadeCategory('blue').answer(track())).toBe('Fim dos anos 80 (1987)');
+    expect(new HalfDecadeCategory('blue').answer(track({ year: null }))).toBe('Ano desconhecido');
   });
   it('draws only categories the track supports in artist mode', () => {
-    const facts = { source: 'A', albumName: 'X', albumOrder: 1, studioTitles: ['X'], pivot: 1987, trackNo: null };
+    const facts = { source: 'A', albumName: 'X', albumOrder: 1, studioTitles: ['X'], pivot: 1987, born: null, group: null, rival: null };
     const t = track({ facts, chorus: null });
     const ctx = { artistNames: ['A'], decades: [] };
     const keys = new Set(Array.from({ length: 50 }, () => ARTIST_SIDES.beginner.draw(ctx, t)!.key));
-    expect([...keys].sort()).toEqual(['near3', 'title']);
-    expect(ARTIST_SIDES.expert.categories(ctx).map((c) => c.key)).toContain('track_no');
-    expect(ARTIST_SIDES.expert.categories({ artistNames: ['A', 'B'], decades: [] }).map((c) => c.key)).toContain('artist_pick');
+    expect([...keys].sort()).toEqual(['near3']);
     expect(SIDES.beginner.categories(ctx)).toHaveLength(5);
+  });
+  it('keeps the same question per colour, tighter on side B', () => {
+    for (const sides of [SIDES, ARTIST_SIDES]) {
+      const ctx = { artistNames: [], decades: [] };
+      const tones = (k: 'beginner' | 'expert') => sides[k].categories(ctx).map((c) => c.tone);
+      expect(tones('expert')).toEqual(tones('beginner'));
+    }
+  });
+  it('asks the artist age and compares popularity', () => {
+    const facts = { source: 'Xutos', albumName: 'X', albumOrder: 1, studioTitles: ['X'], pivot: 1987, born: 1978, group: true, rival: { title: 'Contentores', rank: 500 } };
+    const t = track({ facts, rank: 900 });
+    const age = new AgeCategory(2, 'orange');
+    expect(age.question(t).ask).toBe('Há quantos anos existiam os Xutos quando saiu? Vale ±2.');
+    expect(age.answer(t)).toBe('9 anos (desde 1978)');
+    expect(age.isAvailable(track({ facts: { ...facts, born: null } }))).toBe(false);
+    const pop = new PopularityCategory('blue');
+    expect(pop.question(t).ask).toBe('É mais ou menos famosa do que «Contentores»?');
+    expect(pop.answer(t)).toBe('Mais famosa do que «Contentores»');
+    expect(pop.isAvailable(track({ facts: { ...facts, rival: null }, rank: 900 }))).toBe(false);
   });
   it('splits the chosen decades for "before"', () => {
     expect(pivotYear([1970, 1980, 1990, 2000, 2010])).toBe(2000);
@@ -73,12 +91,7 @@ describe('categories', () => {
     expect(before.question(track(), ctx).ask).toBe('Saiu antes de 1990? Sim ou não.');
     expect(before.answer(track({ year: 1992 }), ctx)).toBe('Não, 1990 ou depois');
   });
-  it('swaps "Década" for "Quem canta?" with 3 decades or fewer', () => {
-    const keys = (decades: number[]) => SIDES.beginner.categories({ artistNames: [], decades }).map((c) => c.key);
-    expect(keys([1980, 1990])).toContain('artist_choice');
-    expect(keys([1980, 1990])).not.toContain('decade');
-    expect(keys([1970, 1980, 1990, 2000])).toContain('decade');
-    expect(keys([])).toContain('decade'); // playlist
+  it('offers "Quem canta?" on side A', async () => {
     const h = (artist: string, lang: 'pt' | 'en' = 'pt') => ({ artist, lang });
     const choice = SIDES.beginner.categories({ artistNames: [], decades: [1980] }).find((c) => c.key === 'artist_choice')!;
     const t = track({ artists: ['Xutos & Pontapés'], lang: 'pt' });
@@ -86,18 +99,18 @@ describe('categories', () => {
     const few = { artistNames: [], decades: [1980], pastArtists: [h('Rui Veloso'), h('Xutos & Pontapés'), h('Madonna', 'en')] };
     expect(choice.isAvailable(t, few)).toBe(false);
     const ok = { ...few, pastArtists: [...few.pastArtists, h('GNR'), h('GNR')] };
-    const q = choice.question(t, ok);
+    const q = await choice.question(t, ok);
     expect([...q.options!].sort()).toEqual(['GNR', 'Rui Veloso', 'Xutos & Pontapés']);
     expect(choice.answer(t, ok)).toBe('Xutos & Pontapés');
   });
-  it('draws lyrics twice as often as the others', () => {
+  it('draws lyrics twice as often as the others', async () => {
     const chorus = { shown: 'a b', hidden: ['c', 'd'] };
     const ctx = { artistNames: [], decades: [] };
     // 5 categorias, a letra com peso 2: total 6; rng 0.99 cai na letra (última).
     expect(SIDES.expert.draw(ctx, track({ chorus }), () => 0.99)!.key).toBe('chorus');
     expect(SIDES.expert.draw(ctx, track({ chorus }), () => 4.5 / 6)!.key).toBe('chorus');
     expect(SIDES.expert.draw(ctx, track({ chorus: null }), () => 0.99)!.key).not.toBe('chorus');
-    const q = SIDES.expert.categories(ctx).find((c) => c.key === 'chorus')!.question(track({ chorus }), ctx);
+    const q = await SIDES.expert.categories(ctx).find((c) => c.key === 'chorus')!.question(track({ chorus }), ctx);
     expect(q.lyric).toEqual(chorus);
   });
 });
@@ -145,5 +158,13 @@ describe('multiplayer', () => {
     const pub = publicCategory(view);
     expect(pub).toEqual({ name: 'Completar o refrão', color: 'var(--cat-purple)', ask: '?', lyric: { shown: 'la la', blanks: 2 } });
     expect(JSON.stringify(pub)).not.toContain('loud');
+  });
+});
+
+describe('title decoys', () => {
+  it('keeps three distinct fake titles that are not the real one', () => {
+    expect(cleanDecoys('Chuva', ['chuva', '"Chuva Miúda"', 'Chuva Miuda', 'Sol', 3, '', 'Trovoada', 'Extra'])).toEqual(['Chuva Miúda', 'Sol', 'Trovoada']);
+    expect(cleanDecoys('X', 'nope')).toEqual([]);
+    expect(decoyPrompt({ title: 'Chuva', artists: ['Mariza'], year: 2004, lang: 'pt' })).toContain('European Portuguese');
   });
 });

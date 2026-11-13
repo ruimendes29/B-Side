@@ -134,7 +134,7 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
    * Animação do sorteio: passa pelas categorias do lado, cada vez mais devagar,
    * e para na sorteada. Devolve false se entretanto começou outra ronda.
    */
-  async function spinCategory(cat: Category, keys: Category[], question: Question) {
+  async function spinCategory(cat: Category, keys: Category[], question: Question | Promise<Question>) {
     const id = ++r.spinId;
     r.category = cat;
     setSpinning(true);
@@ -148,8 +148,9 @@ export function useGame(settings: Settings, setStatus: SetStatus) {
       setFront({ cat: view(keys[i % n]), rolling: true });
       await sleep(60 + k * k * 1.6);
     }
+    const q = await question; // as opções da IA podem chegar depois da roleta
     if (id !== r.spinId) return false;
-    setFront({ cat: view(cat, question), rolling: false });
+    setFront({ cat: view(cat, q), rolling: false });
     setSpinning(false);
     await sleep(500);
     return id === r.spinId;

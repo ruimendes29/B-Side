@@ -17,10 +17,11 @@
         "answers": {
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && root.child('sessions/' + $code + '/players/' + auth.uid).exists() && root.child('sessions/' + $code + '/round/revealed').val() === false && root.child('sessions/' + $code + '/round/locked').val() !== true",
-            ".validate": "newData.child('round').val() === root.child('sessions/' + $code + '/round/n').val() && (newData.child('text').exists() || newData.child('drawing').exists())",
+            ".validate": "newData.child('round').val() === root.child('sessions/' + $code + '/round/n').val() && (newData.child('text').exists() || newData.child('drawing').exists() || newData.child('choice').exists())",
             "round": { ".validate": "newData.isNumber()" },
             "text": { ".validate": "newData.isString() && newData.val().length <= 300" },
             "drawing": { ".validate": "newData.isString() && newData.val().length <= 300000 && newData.val().beginsWith('data:image/png;base64,')" },
+            "choice": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 10" },
             "$other": { ".validate": false }
           }
         },

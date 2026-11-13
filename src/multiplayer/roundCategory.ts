@@ -1,6 +1,9 @@
 // A categoria como os telemóveis a veem: sem a resposta (sem Firebase, para se poder testar).
 import type { CategoryView } from '../hooks/useGame';
 
+/** A opção certa aparece 1,2 s depois de revelar, na TV e nos telemóveis (como a resposta da TV, em style.css). */
+export const RESULT_DELAY_MS = 1200;
+
 export interface RoundCategory {
   name: string;
   color: string;

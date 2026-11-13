@@ -13,7 +13,8 @@ import { Card } from '../components/Card';
 import { Controls } from '../components/Controls';
 import { Progress } from '../components/Progress';
 import { History } from '../components/History';
-import { publicCategory } from './roundCategory';
+import { GlassCard } from '../components/GlassCard';
+import { RESULT_DELAY_MS, type RoundCategory, publicCategory } from './roundCategory';
 import {
   type Answer, type Player, type Session, createSession, endSession, joinUrl, lockRound, onCommand, revealRound, setHost,
   setState, startRound, watchSession,
@@ -58,17 +59,29 @@ function Lobby({ code, players, host, sound, onSound, error }: {
 interface Solution { year: number | null; artist: string; title: string; category?: { name: string; color: string; answer: string } }
 
 /** Quadro de cada jogador com o nome por baixo e, a aparecer devagar, a resposta certa. */
-function Results({ players, answers, round, solution }: {
-  players: [string, Player][]; answers: Record<string, Answer>; round: number; solution?: Solution;
+function Results({ players, answers, round, cat, solution }: {
+  players: [string, Player][]; answers: Record<string, Answer>; round: number; cat: RoundCategory | null; solution?: Solution;
 }) {
+  const answerOf = (id: string) => (answers[id]?.round === round ? answers[id] : undefined);
+  // Categorias com opções: em vez dos quadros, as opções com quem escolheu cada uma.
+  const options = cat?.options?.length && !cat.lyric ? cat.options : null;
   const cols = players.length <= 4 ? Math.max(players.length, 1) : players.length <= 8 ? 4 : 5;
   const rows = Math.ceil(players.length / cols);
   return (
     <section className="tv-results" role="dialog" aria-label="Respostas">
       <h1>Results are in!</h1>
-      <div className="tv-results-grid" style={{ '--cols': cols, '--rows': rows } as React.CSSProperties}>
+      {options ? (
+        <div className="tv-results-choices">
+          <GlassCard color={cat!.color} options={options} delayMs={RESULT_DELAY_MS}
+            correct={solution?.category ? options.indexOf(solution.category.answer) : -1}
+            votes={options.map((_, i) => players.filter(([id]) => answerOf(id)?.choice === i).map(([, p]) => p.name))} />
+          {players.some(([id]) => answerOf(id)?.choice == null) && (
+            <p className="hint">Sem resposta: {players.filter(([id]) => answerOf(id)?.choice == null).map(([, p]) => p.name).join(', ')}</p>
+          )}
+        </div>
+      ) : <div className="tv-results-grid" style={{ '--cols': cols, '--rows': rows } as React.CSSProperties}>
         {players.map(([id, p]) => {
-          const a = answers[id]?.round === round ? answers[id] : undefined;
+          const a = answerOf(id);
           return (
             <figure key={id}>
               <div className={`board-shot${a ? '' : ' none'}`}>
@@ -80,7 +93,7 @@ function Results({ players, answers, round, solution }: {
             </figure>
           );
         })}
-      </div>
+      </div>}
       {solution && (
         <div className="tv-solution" role="status">
           {solution.category && (
@@ -224,7 +237,7 @@ export default function TvApp() {
         </div>
       )}
       {!lobby && results && round && (
-        <div className="tv-overlay"><Results players={players} answers={answers} round={round.n} solution={solution} /></div>
+        <div className="tv-overlay"><Results players={players} answers={answers} round={round.n} cat={round.cat} solution={solution} /></div>
       )}
     </div>
   );

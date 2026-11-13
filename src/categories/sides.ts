@@ -1,13 +1,12 @@
 // Lado A (iniciante) e lado B (experiente).
-// As cores são inventadas (variáveis --cat-* em style.css); as cinco posições têm a mesma cor nos dois modos.
-// Cada lado tem só uma pergunta de "±N anos" (antes havia várias, que eram quase a mesma pergunta)
-// e a letra (roxo) em todos, com peso 2 no sorteio.
-// Com 3 décadas ou menos, a "Década" do lado A dá lugar a "Quem canta?" (quase não havia décadas por onde escolher).
+// As cores são inventadas (variáveis --cat-* em style.css). Cada cor é a mesma pergunta nos dois lados,
+// e o lado B é a versão mais apertada (ex.: amarelo = ±4 anos no A, ano exato no B).
+// A letra (roxo) está em todos, com peso 2 no sorteio.
 import type { Mode, Settings, SideKey, Track } from '../types';
 import {
-  AlbumChoiceCategory, ArtistChoiceCategory, AlbumNameCategory, AlbumOrderCategory, ArtistPickCategory, BeforeAfterCategory,
-  BeforeYearCategory, Category, type CategoryContext, ChorusCategory, DecadeCategory, ExactYearCategory,
-  GroupOrSoloCategory, SingerCategory, TitleCategory, TrackNumberCategory, YearWindowCategory,
+  AgeCategory, AlbumChoiceCategory, AlbumNameCategory, ArtistChoiceCategory, BeforeAfterCategory, BeforeYearCategory,
+  Category, type CategoryContext, ChorusCategory, ExactYearCategory, HalfDecadeCategory, PopularityCategory,
+  SingerCategory, TitleCategory, TitleChoiceCategory, YearWindowCategory,
 } from './Category';
 
 const PINK = 'pink';
@@ -16,20 +15,9 @@ const BLUE = 'blue';
 const ORANGE = 'orange';
 const PURPLE = 'purple';
 
-export const group = new GroupOrSoloCategory(PINK);
-const title = new TitleCategory(PINK);
-const decade = new DecadeCategory(ORANGE);
+// Instâncias fixas: o sorteio procura a categoria sorteada na lista do lado (indexOf).
 const chorus = new ChorusCategory(PURPLE);
 const exact = new ExactYearCategory(YELLOW);
-const artistPick = new ArtistPickCategory(BLUE);
-const trackNo = new TrackNumberCategory(BLUE);
-const albumName = new AlbumNameCategory(PINK);
-const albumOrder = new AlbumOrderCategory(ORANGE);
-// Instâncias fixas: o sorteio procura a categoria sorteada na lista do lado (indexOf).
-const beforeYear = new BeforeYearCategory(YELLOW);
-const near4 = new YearWindowCategory(4, BLUE);
-const artistChoice = new ArtistChoiceCategory(ORANGE);
-const fewDecades = (ctx: CategoryContext) => ctx.decades.length > 0 && ctx.decades.length <= 3;
 
 export class CategorySide {
   constructor(
@@ -53,18 +41,17 @@ export class CategorySide {
   }
 }
 
+//            rosa: quem canta              amarelo: ano              azul: época                   laranja: título
 export const SIDES: Record<SideKey, CategorySide> = {
-  beginner: new CategorySide('A', 'Iniciante', (ctx) => [group, beforeYear, near4, fewDecades(ctx) ? artistChoice : decade, chorus]),
-  expert: new CategorySide('B', 'Experiente', [title, exact, new SingerCategory(BLUE), decade, chorus]),
+  beginner: new CategorySide('A', 'Iniciante', [new ArtistChoiceCategory(PINK), new YearWindowCategory(4, YELLOW), new BeforeYearCategory(BLUE), new TitleChoiceCategory(ORANGE), chorus]),
+  expert: new CategorySide('B', 'Experiente', [new SingerCategory(PINK), exact, new HalfDecadeCategory(BLUE), new TitleCategory(ORANGE), chorus]),
 };
 
 // Modo por artista: as perguntas passam a ser sobre o artista e os seus álbuns.
+//            rosa: álbum                   amarelo: ano              azul: comparar                laranja: idade
 export const ARTIST_SIDES: Record<SideKey, CategorySide> = {
-  beginner: new CategorySide('A', 'Iniciante', [title, new BeforeAfterCategory(YELLOW), new YearWindowCategory(3, BLUE), new AlbumChoiceCategory(ORANGE), chorus]),
-  // 3.ª cor do lado B: "Qual dos artistas?" com 2 ou mais artistas, "Nº da faixa" com um só.
-  expert: new CategorySide('B', 'Experiente', (ctx) => [
-    albumName, exact, ctx.artistNames.length >= 2 ? artistPick : trackNo, albumOrder, chorus,
-  ]),
+  beginner: new CategorySide('A', 'Iniciante', [new AlbumChoiceCategory(PINK), new YearWindowCategory(3, YELLOW), new BeforeAfterCategory(BLUE), new AgeCategory(5, ORANGE), chorus]),
+  expert: new CategorySide('B', 'Experiente', [new AlbumNameCategory(PINK), exact, new PopularityCategory(BLUE), new AgeCategory(2, ORANGE), chorus]),
 };
 
 /** Lado das categorias para este modo. */
@@ -80,9 +67,6 @@ export const contextFor = (s: Settings, pastArtists: CategoryContext['pastArtist
 /** Todas as categorias por chave (para o histórico). */
 export function categoryByKey(key: string): Category | undefined {
   const all = [...Object.values(SIDES), ...Object.values(ARTIST_SIDES)]
-    .flatMap((s) => [
-      ...s.categories({ artistNames: [], decades: [] }),
-      ...s.categories({ artistNames: ['', ''], decades: [1980] }),
-    ]);
+    .flatMap((s) => s.categories({ artistNames: [], decades: [] }));
   return all.find((c) => c.key === key);
 }

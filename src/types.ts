@@ -34,7 +34,11 @@ export interface ArtistFacts {
   albumOrder: number;
   studioTitles: string[];
   pivot: number;
-  trackNo: number | null;
+  /** Ano de nascimento do artista (ou de fundação do grupo), do MusicBrainz. */
+  born: number | null;
+  group: boolean | null;
+  /** Outra música do artista e a sua popularidade na Deezer, para comparar. */
+  rival: { title: string; rank: number } | null;
 }
 
 export interface Track {

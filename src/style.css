@@ -228,6 +228,23 @@ kbd {
 .choice-text { overflow-wrap: anywhere; }
 .glass li.correct { background: color-mix(in srgb, var(--cat) 28%, transparent); box-shadow: inset 0 0 0 1.5px var(--cat); }
 .glass li.wrong { opacity: .4; }
+.glass li.correct { animation: choice-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
+.glass li.picked { box-shadow: inset 0 0 0 2px var(--cat); }
+.glass li:has(.choice-btn) { padding: 0; }
+.choice-btn {
+  all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+.choice-btn:focus-visible { outline: 2px solid var(--cat); outline-offset: 2px; }
+.choice-btn:active { transform: scale(.98); }
+.choice-votes { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.vote-pill {
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  font-size: .75em; font-weight: 700; color: #000; background: rgba(255, 255, 255, .85);
+}
+@keyframes choice-pop { 0% { transform: scale(1); } 40% { transform: scale(1.05); } 70% { transform: scale(.98); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .glass li.correct { animation: none; } }
 @keyframes glass-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
 .tracks .cat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
@@ -621,6 +638,10 @@ kbd {
   display: grid; gap: 2vh 2vw; justify-content: center;
   grid-template-columns: repeat(var(--cols), var(--w));
 }
+.tv-results-choices { display: flex; flex-direction: column; align-items: center; gap: 1.5vh; }
+.tv-results-choices .glass { width: min(110vh, 80vw); margin: 0; font-size: min(3.6vh, 30px); }
+.tv-results-choices .glass li { font-size: 1em; padding: 1.4vh 2vh; }
+.tv-results-choices .choice-letter { width: 1.6em; height: 1.6em; font-size: .8em; }
 .tv-results figure { margin: 0; display: flex; flex-direction: column; gap: .8vh; }
 .board-shot { position: relative; aspect-ratio: 4 / 3; border-radius: 12px; background: #fff; overflow: hidden; }
 .board-shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }

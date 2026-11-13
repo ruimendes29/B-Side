@@ -12,6 +12,7 @@ import { ArtistsPanel } from '../components/settings/ArtistsPanel';
 import { LanguagesPanel } from '../components/settings/LanguagesPanel';
 import { ClipPanel } from '../components/settings/ClipPanel';
 import { Whiteboard } from './Whiteboard';
+import { RESULT_DELAY_MS } from './roundCategory';
 import { GearIcon } from '../components/icons';
 import { modals } from '../modals/ModalService';
 import {
@@ -68,6 +69,7 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
   const setError = (text: string) => setStatus(text, 'error');
   const [busy, setBusy] = useState(false);
   const [sentRound, setSentRound] = useState(0);
+  const [choice, setChoice] = useState<{ round: number; i: number } | null>(null);
 
   useEffect(() => (me ? watchPlayerView(code, setView) : undefined), [me, code]);
 
@@ -92,6 +94,7 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
     try {
       await submitAnswer(code, answer);
       setSentRound(answer.round);
+      if (answer.choice != null) setChoice({ round: answer.round, i: answer.choice });
     } catch (err) {
       setError(message(err));
     }
@@ -145,6 +148,10 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
     } else {
       const cat = round.cat;
       const answerWords = round.revealed && round.answer ? round.answer.split(' ') : null;
+      // Com opções escolhe-se com um toque, sem quadro.
+      const choosing = !!cat?.options?.length && !cat.lyric;
+      const open = !round.revealed && !round.locked;
+      const picked = choice?.round === round.n ? choice.i : undefined;
       body = (
         <div className="player-round">
           <div className="player-round-head">
@@ -153,8 +160,9 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
           </div>
           {cat && <p className="player-ask">{cat.ask}</p>}
           {cat && (cat.options || cat.lyric) && (
-            <GlassCard color={cat.color} options={cat.options} revealed={round.revealed}
+            <GlassCard color={cat.color} options={cat.options} revealed={round.revealed} delayMs={RESULT_DELAY_MS}
               correct={round.revealed && cat.options && round.answer ? cat.options.indexOf(round.answer) : -1}
+              picked={picked} onPick={choosing && open ? (i) => void send({ round: round.n, choice: i }) : undefined}
               lyric={cat.lyric && { shown: cat.lyric.shown, hidden: answerWords ?? Array<string>(cat.lyric.blanks).fill('') }} />
           )}
           {round.revealed ? (
@@ -166,10 +174,11 @@ export default function PlayerApp({ initialCode }: { initialCode: string }) {
             </div>
           ) : round.locked ? (
             <p className="player-wait"><b>Results are in!</b><br />Olha para a TV.</p>
-          ) : (
+          ) : choosing ? null : (
             <Whiteboard key={round.n} round={round.n} onSubmit={send} sent={sentRound === round.n} />
           )}
-          {sentRound === round.n && !round.revealed && !round.locked && <p className="hint">Resposta enviada. Podes mudá-la até revelarem.</p>}
+          {sentRound === round.n && open && <p className="hint">Resposta enviada. Podes mudá-la até revelarem.</p>}
+          {choosing && open && sentRound !== round.n && <p className="hint">Toca na tua resposta.</p>}
         </div>
       );
     }

@@ -2,8 +2,8 @@
 // Cada categoria sabe a pergunta, a cor, se a música tem dados para ela e a resposta certa.
 import type { ArtistFacts, Chorus, LangKey, Track } from '../types';
 import { normalize, shuffle } from '../lib/util';
-import { musicBrainz } from '../services/MusicBrainzService';
 import { type CategoryTone, toneVar } from '../theme/colors';
+import { titleDecoys } from '../services/TitleDecoyService';
 
 export interface CategoryContext {
   /** Nomes dos artistas escolhidos (modo por artista). */
@@ -36,8 +36,8 @@ export abstract class Category {
     return true;
   }
 
-  /** Pergunta para esta música (pode ter opções, ex.: álbuns). */
-  question(_track: Track, _ctx: CategoryContext, _rng: () => number = Math.random): Question {
+  /** Pergunta para esta música (pode ter opções, ex.: álbuns; as da IA chegam mais tarde). */
+  question(_track: Track, _ctx: CategoryContext, _rng: () => number = Math.random): Question | Promise<Question> {
     return { ask: this.ask };
   }
 
@@ -83,11 +83,12 @@ export class BeforeYearCategory extends YearCategory {
   }
 }
 
-export class DecadeCategory extends YearCategory {
-  constructor(color: CategoryTone) { super('decade', 'Década', 'Em que década saiu?', color); }
+/** Década e metade (ex.: "fim dos anos 80"): a versão mais apertada de "Antes de…?". */
+export class HalfDecadeCategory extends YearCategory {
+  constructor(color: CategoryTone) { super('half_decade', 'Início ou fim da década', 'Em que década saiu, e foi no início (0–4) ou no fim (5–9)?', color); }
   protected answerFor(y: number) {
     const d = Math.floor(y / 10) * 10;
-    return `Anos ${d < 2000 ? String(d).slice(2) : d}`;
+    return `${y % 10 < 5 ? 'Início' : 'Fim'} dos anos ${d < 2000 ? String(d).slice(2) : d} (${y})`;
   }
 }
 
@@ -109,7 +110,17 @@ export class ChorusCategory extends Category {
 // ---------- Título e artista ----------
 
 export class TitleCategory extends Category {
-  constructor(color: CategoryTone) { super('title', 'Título da música', 'Como se chama a música?', color); }
+  constructor(color: CategoryTone) { super('title', 'Título da música', 'Como se chama a música? Título completo.', color); }
+  answer(t: Track) { return t.title; }
+}
+
+/** Título entre quatro: o certo e três falsos parecidos, inventados pela IA. Sem IA, passa a escrever o título. */
+export class TitleChoiceCategory extends Category {
+  constructor(color: CategoryTone) { super('title_choice', 'Qual é o título?', 'Escolhe o título certo.', color); }
+  async question(t: Track, _ctx: CategoryContext, rng: () => number = Math.random) {
+    const wrong = await titleDecoys.decoys(t);
+    return wrong.length === 3 ? { ask: this.ask, options: shuffle([t.title, ...wrong], rng) } : { ask: 'Como se chama a música?' };
+  }
   answer(t: Track) { return t.title; }
 }
 
@@ -145,36 +156,10 @@ export class ArtistChoiceCategory extends Category {
   answer(t: Track) { return t.artists.join(', '); }
 }
 
-// "Rita Guerra & Beto", "Earth, Wind & Fire", "Xutos e Pontapés", "Song (feat. X)"
-const SEVERAL = /\s(&|and|e|y|et|und|x|with|com|con|vs\.?)\s|,|\bfeat\.?\s|\bft\.?\s|\bfeaturing\b/i;
-export const looksLikeSeveral = (artist: string, title: string) => SEVERAL.test(artist) || /\b(feat|ft)\.?\s|\bfeaturing\b/i.test(title);
-
 /** Tipo do artista no MusicBrainz -> grupo (true), solo (false) ou desconhecido (null). */
 export function isGroupType(type: string | null): boolean | null {
   if (!type) return null;
   return type !== 'Person' && type !== 'Character'; // Group, Orchestra, Choir
-}
-
-export class GroupOrSoloCategory extends Category {
-  private readonly cache = new Map<string, Promise<boolean | null>>();
-
-  constructor(color: CategoryTone) { super('group', 'Grupo ou solo', 'É um grupo ou um artista a solo? Duetos e "feat." contam como grupo.', color); }
-
-  /** Grupo (true), solo (false) ou desconhecido (null). Duetos e "feat." contam como grupo. */
-  isGroup(t: Track) {
-    if (!this.cache.has(t.id)) {
-      const artist = t.artists[0] || '';
-      this.cache.set(t.id, looksLikeSeveral(artist, t.title)
-        ? Promise.resolve(true)
-        : musicBrainz.artistType(artist).then(isGroupType));
-    }
-    return this.cache.get(t.id)!;
-  }
-
-  async answer(t: Track) {
-    const group = await this.isGroup(t);
-    return group == null ? 'Não sei — decidam vocês' : group ? '👥 Grupo' : '👤 Solo';
-  }
 }
 
 // ---------- Modo por artista ----------
@@ -216,22 +201,32 @@ export class AlbumChoiceCategory extends ArtistCategory {
   answer(t: Track) { return this.facts(t).albumName; }
 }
 
-export class AlbumOrderCategory extends ArtistCategory {
-  constructor(color: CategoryTone) { super('album_order', 'Que álbum é?', 'Qual é a ordem do álbum na discografia? (1.º é o primeiro)', color); }
-  isAvailable(t: Track) { return Boolean(t.facts && t.facts.studioTitles.length >= 2); }
-  answer(t: Track) { return `${this.facts(t).albumOrder}.º álbum de estúdio`; }
+/** Idade do artista (ou anos do grupo) quando saiu o álbum. Vale ±range. */
+export class AgeCategory extends ArtistCategory {
+  constructor(readonly range: number, color: CategoryTone) {
+    super(`age${range}`, 'Idade do artista', `Que idade tinha o artista quando saiu? Vale ±${range}.`, color);
+  }
+  isAvailable(t: Track) { return Boolean(t.facts?.born && t.year && t.year > t.facts.born); }
+  question(t: Track) {
+    const f = t.facts;
+    if (!f) return { ask: this.ask };
+    return { ask: f.group
+      ? `Há quantos anos existiam os ${f.source} quando saiu? Vale ±${this.range}.`
+      : `Que idade tinha ${f.source} quando saiu? Vale ±${this.range}.` };
+  }
+  answer(t: Track) {
+    const { born, group } = this.facts(t);
+    return `${t.year! - born!} anos (${group ? 'desde' : 'nasceu em'} ${born})`;
+  }
 }
 
-export class ArtistPickCategory extends ArtistCategory {
-  constructor(color: CategoryTone) { super('artist_pick', 'Qual dos artistas?', 'Quem canta esta música?', color); }
-  isAvailable(t: Track, ctx: CategoryContext) { return Boolean(t.facts) && ctx.artistNames.length >= 2; }
-  question(_t: Track, ctx: CategoryContext) { return { ask: this.ask, options: ctx.artistNames }; }
-  answer(t: Track) { return this.facts(t).source; }
-}
-
-export class TrackNumberCategory extends ArtistCategory {
-  constructor(color: CategoryTone) { super('track_no', 'Nº da faixa no álbum', 'Em que posição está no álbum? Vale ±1.', color); }
-  isAvailable(t: Track) { return t.facts?.trackNo != null; }
-  question() { return { ask: 'Qual é o número da faixa no álbum? (vale ±1)' }; }
-  answer(t: Track) { return `Faixa ${this.facts(t).trackNo}`; }
+/** Mais ou menos famosa do que outra música do artista (popularidade da Deezer). */
+export class PopularityCategory extends ArtistCategory {
+  constructor(color: CategoryTone) { super('popularity', 'Mais ou menos famosa?', 'É mais ou menos famosa do que outra música do artista?', color); }
+  isAvailable(t: Track) { return Boolean(t.facts?.rival && t.rank); }
+  question(t: Track) { return { ask: t.facts?.rival ? `É mais ou menos famosa do que «${t.facts.rival.title}»?` : this.ask }; }
+  answer(t: Track) {
+    const { rival } = this.facts(t);
+    return `${t.rank! > rival!.rank ? 'Mais' : 'Menos'} famosa do que «${rival!.title}»`;
+  }
 }

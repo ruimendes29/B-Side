@@ -4,6 +4,7 @@
 // vezes o ano da reedição (ex.: "Contentores" dos Xutos aparecia como 2014 em vez de 1987).
 import type { ArtistRef, Chorus, Track } from '../types';
 import { cleanTitle, pick } from '../lib/util';
+import { isGroupType } from '../categories/Category';
 import { deezer, rankThreshold, type DzTrack } from './DeezerService';
 import { musicBrainz, type StudioAlbum } from './MusicBrainzService';
 import { lyrics } from './LyricsService';
@@ -15,6 +16,9 @@ interface ArtistIndex {
   tracks: DzTrack[];
   /** Mediana dos anos dos álbuns: a data de "antes ou depois de…". */
   pivot: number;
+  /** Ano de nascimento (ou de fundação) e se é um grupo, para a idade. */
+  born: number | null;
+  group: boolean | null;
 }
 
 const NO_BLOCKS = new BlockList([]);
@@ -35,9 +39,9 @@ export class ArtistModeService {
   }
 
   private async buildIndex(artist: ArtistRef): Promise<ArtistIndex> {
-    const [top, mbid] = await Promise.all([deezer.artistTop(artist.id), musicBrainz.artistId(artist.name)]);
-    if (!mbid) throw new Error(`Não encontrei a discografia de ${artist.name} no MusicBrainz.`);
-    const studio = await musicBrainz.studioAlbums(mbid);
+    const [top, mb] = await Promise.all([deezer.artistTop(artist.id), musicBrainz.artist(artist.name)]);
+    if (!mb) throw new Error(`Não encontrei a discografia de ${artist.name} no MusicBrainz.`);
+    const studio = await musicBrainz.studioAlbums(mb.id);
     if (!studio.length) throw new Error(`O MusicBrainz não tem álbuns de estúdio de ${artist.name}.`);
     const years = studio.map((a) => a.year).sort((a, b) => a - b);
     return {
@@ -45,6 +49,8 @@ export class ArtistModeService {
       byId: new Map(studio.map((a) => [a.id, a])),
       tracks: top.filter((t) => deezer.isUsable(t, NO_BLOCKS)),
       pivot: years[Math.floor(years.length / 2)],
+      born: mb.born,
+      group: isGroupType(mb.type),
     };
   }
 
@@ -77,13 +83,17 @@ export class ArtistModeService {
       const [found, chorus] = await Promise.all([this.appearance(idx, src, t), lyrics.chorusLine(t.artist?.name || src.name, title)]);
       const album = found && idx.byId.get(found.albumId);
       if (!found || !album) { exclude.add(`dz${t.id}`); continue; } // não está em nenhum álbum de estúdio
-      return this.toTrack(t, src, idx, album, found.trackNo, chorus);
+      return this.toTrack(t, src, idx, album, chorus);
     }
     throw lastError instanceof Error ? lastError
       : new Error('Não encontrei músicas destes artistas em álbuns de estúdio. Experimenta outros artistas ou outro filtro de fama.');
   }
 
-  private toTrack(t: DzTrack, src: ArtistRef, idx: ArtistIndex, album: StudioAlbum, trackNo: number | null, chorus: Chorus | null): Track {
+  private toTrack(t: DzTrack, src: ArtistRef, idx: ArtistIndex, album: StudioAlbum, chorus: Chorus | null): Track {
+    // Outra música do mesmo artista, para "mais ou menos famosa?" (com popularidade diferente).
+    const others = idx.tracks.filter((o) => o.id !== t.id && o.rank && t.rank && o.rank !== t.rank
+      && cleanTitle(o.title) !== cleanTitle(t.title));
+    const rival = others.length ? pick(others) : null;
     return {
       ...deezer.toTrack(t),
       artists: [t.artist?.name || src.name],
@@ -96,7 +106,9 @@ export class ArtistModeService {
         albumOrder: album.order,
         studioTitles: idx.studio.map((a) => a.title),
         pivot: idx.pivot,
-        trackNo,
+        born: idx.born,
+        group: idx.group,
+        rival: rival && { title: cleanTitle(rival.title) || rival.title, rank: rival.rank! },
       },
       chorus,
     };
