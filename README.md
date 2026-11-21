@@ -1,5 +1,7 @@
 # B-Side
 
+[![CI](https://github.com/ruimendes29/B-Side/actions/workflows/ci.yml/badge.svg)](https://github.com/ruimendes29/B-Side/actions/workflows/ci.yml)
+
 Um jogo de música no browser: adivinha o ano de músicas aleatórias. Toca um excerto (10 s por defeito). Quando carregas em **Revelar**, a carta vira e mostra o artista, o ano e o título.
 
 As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem configuração.
@@ -13,6 +15,19 @@ As músicas e os excertos de 30 s vêm da **Deezer**. Não é preciso conta nem 
 ```
 
 Depois abre **http://127.0.0.1:8888/**. Na primeira vez, o script instala as dependências (`npm install`). O site é feito em React + TypeScript com Vite: `npm run build` gera o site estático em `dist/`, que pode ser alojado em qualquer servidor estático. O Vercel faz o build sozinho a cada push (ver `vercel.json`). `npm test` corre os testes.
+
+## Desenvolvimento
+
+Precisa de Node.js LTS.
+
+```sh
+npm ci          # instala as dependências do package-lock.json
+npm run dev     # servidor de desenvolvimento em http://127.0.0.1:8888/
+npm test        # testes (Vitest)
+npm run build   # verificação de tipos (tsc) e build de produção em dist/
+```
+
+Cada push e pull request para `main` corre `npm ci`, `npm run build` e `npm test` no GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 ## Categorias
 
